@@ -5,8 +5,9 @@ freelance/job marketplace, e-commerce, advertising, and a double-entry finance c
 built as a **strict-TypeScript monorepo** that is a modular monolith today and
 microservice-ready tomorrow.
 
-This repository currently contains the **foundation and authentication system**.
-Everything else is built on top of it; see [Roadmap](#roadmap).
+This repository currently contains the **foundation, the authentication system, and
+the web shell it runs in**. Everything else is built on top of it; see
+[Roadmap](#roadmap).
 
 ---
 
@@ -16,13 +17,18 @@ Everything else is built on top of it; see [Roadmap](#roadmap).
 | ------------------------------------------------------------------- | ------ | ----------------------------------------- |
 | Domain kernel (money, permissions, sharding, policy, revenue split) | Done   | 47 unit tests                             |
 | Identity / RBAC / scope / audit schema                              | Done   | 9 invariant tests against real PostgreSQL |
-| Authentication (register, verify, login, refresh, logout, reset)    | Done   | 21 end-to-end tests over HTTP             |
+| Authentication (register, verify, login, refresh, logout, reset)    | Done   | 26 end-to-end tests over HTTP             |
 | Domain auth logic (password policy, OTP, tokens, redaction)         | Done   | 19 unit tests                             |
+| Shared API contracts (one schema for server and browser)            | Done   | 10 contract tests                         |
+| Design tokens and WCAG-verified themes                              | Done   | 30 contrast and token tests               |
+| Web app: app shell, auth UI, PWA, dark mode                         | Done   | 29 component and client tests             |
 | Health probes (`/health/live`, `/health/ready`)                     | Done   | e2e                                       |
 | Migration runner with checksum guard                                | Done   | e2e + manual                              |
-| CI (format, typecheck, provision DB, test, build)                   | Done   | `.github/workflows/ci.yml`                |
+| CI (format, typecheck, DB, build, budget, test)                     | Done   | `.github/workflows/ci.yml`                |
 
-**96 automated tests**, all green, all run against real infrastructure locally.
+**174 automated tests**, all green — locally and in CI, against real infrastructure.
+Every route ships **100–130 kB** of compressed JavaScript, enforced by
+`pnpm check:budget`.
 
 ---
 
@@ -60,6 +66,15 @@ The API can run with an in-process cache and no Redis:
 CACHE_DRIVER=memory pnpm --filter @socialhub/api dev
 ```
 
+To run the API and the web app together:
+
+```bash
+pnpm dev          # api on :4000, web on :3000, with prefixed logs
+```
+
+The web app proxies `/api/*` to the API, so requests stay same-origin — which is
+what the `__Host-` cookies and `SameSite=Strict` require.
+
 This is a development convenience only; the cache provider refuses
 `CACHE_DRIVER=memory` when `NODE_ENV=production`, because per-process caches make
 rate limits and permission invalidation wrong across replicas.
@@ -71,15 +86,18 @@ rate limits and permission invalidation wrong across replicas.
 ```
 apps/
   api/                  NestJS HTTP API (modular monolith)
-  web/                  Next.js front end (in progress)
+  web/                  Next.js app — app shell, auth UI, PWA shell, dark mode
 libs/shared/
   kernel/               Pure domain core — no framework, no I/O
   db/                   Migrations + exact migration runner
+  contracts/            Request schemas and response types shared by API and web
+  config/               Design tokens, themes and the WCAG contrast checker
 services/
   finance-go/           Go (Gin) finance service — ledger, wallet, revenue split
   intelligence-py/      FastAPI recommendation and AI service
 docker/compose.yaml     Lightweight-mode development stack
 docs/                   Architecture decisions and runbooks
+tools/                  Repo tooling (dev runner, bundle budget check)
 ```
 
 The dependency rule is one-directional: `apps → libs`, never `libs → apps`, and
@@ -95,6 +113,7 @@ Detailed documents live in [`docs/`](docs):
 - [`docs/security-model.md`](docs/security-model.md) — identity, permissions, sessions, audit
 - [`docs/data-model.md`](docs/data-model.md) — schema, sharding, indexes, growth path
 - [`docs/auth-flows.md`](docs/auth-flows.md) — every authentication flow, step by step
+- [`docs/design-system.md`](docs/design-system.md) — tokens, themes, accessibility, JS budget
 
 ### The access model in one paragraph
 

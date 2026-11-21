@@ -5,7 +5,7 @@
 #   1. formatting and strict type checking pass;
 #   2. the domain kernel's invariants hold (money, permissions, sharding);
 #   3. the database schema enforces the security model (against real Postgres);
-#   4. the authentication flows work end to end over HTTP.
+#   4. authentication works end to end over HTTP — and in the browser UI.
 #
 # Steps 3 and 4 need a database, which the service container below provides.
 # ---------------------------------------------------------------------------
@@ -83,6 +83,10 @@ jobs:
 
       - name: Build
         run: pnpm -r build
+
+      - name: Enforce the JavaScript budget
+        # Fails the build if any route's compressed initial JS exceeds 250 kB.
+        run: pnpm check:budget
 
       - name: Unit and integration tests
         env:

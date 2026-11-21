@@ -113,7 +113,20 @@ import { PermissionCache } from './infrastructure/permission-cache.js';
         }),
       inject: [CACHE, JsonLogger, ENV],
     },
-    { provide: MAILER, useClass: LogMailer },
+    {
+      // Selected by MAIL_TRANSPORT rather than hardcoded: env parsing rejects the
+      // log transport in production, so this cannot deploy a code-leaking mailer.
+      provide: MAILER,
+      useFactory: (logger: JsonLogger, env: Env): Mailer => {
+        switch (env.MAIL_TRANSPORT) {
+          case 'log':
+            return new LogMailer(logger);
+          case 'smtp':
+            throw new Error('MAIL_TRANSPORT=smtp requires the SMTP adapter (not yet implemented)');
+        }
+      },
+      inject: [JsonLogger, ENV],
+    },
     {
       provide: AUDIT_SINK,
       useFactory: (

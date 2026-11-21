@@ -56,7 +56,22 @@ export const registerSchema = z
   })
   .strict();
 
-export const loginSchema = z.object({ email, password }).strict();
+/**
+ * Login accepts any non-empty password, however short.
+ *
+ * The strength policy belongs to registration and password reset — the two places
+ * a password is *chosen*. Applying a minimum here would reject a legitimate
+ * account whose password predates a policy change, reject wrong guesses with a
+ * distinguishable 422, and so hand an attacker a probe: "this address exists and
+ * its password is short" versus a uniform 401. The service still hashes whatever
+ * arrives, so timing stays uniform too.
+ */
+export const loginSchema = z
+  .object({
+    email,
+    password: z.string().min(1, 'Password is required').max(PASSWORD_MAX_LENGTH),
+  })
+  .strict();
 
 export const verifyEmailSchema = z.object({ email, code: otpCode }).strict();
 

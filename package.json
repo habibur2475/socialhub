@@ -12,7 +12,7 @@
     "dev": "node tools/scripts/dev.mjs",
     "dev:web": "pnpm --filter @socialhub/web dev",
     "dev:api": "pnpm --filter @socialhub/api dev",
-    "build": "pnpm -r --filter './libs/**' build && pnpm --filter @socialhub/api build && pnpm --filter @socialhub/web build",
+    "build": "pnpm --filter @socialhub/api... build && pnpm --filter @socialhub/web build",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",

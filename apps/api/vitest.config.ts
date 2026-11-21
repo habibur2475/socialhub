@@ -1,6 +1,18 @@
+import { fileURLToPath } from 'node:url';
+
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  resolve: {
+    // Workspace libraries resolve to source under the test runner, so `pnpm test`
+    // works on a clean checkout with no build step. The deployed artifact loads
+    // the compiled JS declared in each package's `exports`.
+    alias: {
+      '@socialhub/kernel': fileURLToPath(
+        new URL('../../libs/shared/kernel/src/index.ts', import.meta.url),
+      ),
+    },
+  },
   // NestJS dependency injection needs design:paramtypes metadata. Vite's esbuild
   // transform does not read `emitDecoratorMetadata` from tsconfig reliably across
   // workspace layouts, so it is declared explicitly here. Without it, class-typed

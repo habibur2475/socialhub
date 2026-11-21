@@ -193,9 +193,15 @@ describeWithDb('identity schema', () => {
 
   it('keeps audit rows immutable', async () => {
     const id = randomUUID();
+    // Chain-correct fixture: link to the current head so this test does not
+    // introduce a second chain head (which would break verification elsewhere).
+    const head = await client.query<{ entry_hash: Buffer }>(
+      'SELECT entry_hash FROM audit_events ORDER BY occurred_at DESC, id DESC LIMIT 1',
+    );
     await client.query(
-      `INSERT INTO audit_events (id, action, resource_type, entry_hash) VALUES ($1, 'user.login', 'account', $2)`,
-      [id, Buffer.alloc(32, 1)],
+      `INSERT INTO audit_events (id, action, resource_type, entry_hash, previous_hash)
+       VALUES ($1, 'user.login', 'account', $2, $3)`,
+      [id, Buffer.alloc(32, 1), head.rows[0]?.entry_hash ?? null],
     );
     await expect(
       client.query(`UPDATE audit_events SET action = 'user.tamper' WHERE id = $1`, [id]),

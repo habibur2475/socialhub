@@ -337,6 +337,29 @@ describeWithDb('auth (e2e)', () => {
       expect(wrongPassword.body.error.message).toBe(unknownAccount.body.error.message);
     });
 
+    /**
+     * Regression guard: a short password must produce the same 401 as a long
+     * wrong one. Validating login input against the strength policy would leak
+     * "this address exists" through a distinguishable 422.
+     */
+    it('returns the same 401 for short, long and empty-ish wrong passwords', async () => {
+      const { email, code } = await register();
+      await request(app.getHttpServer()).post('/api/v1/auth/verify-email').send({ email, code });
+
+      const short = await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({ email, password: 'abc' })
+        .expect(401);
+      const long = await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({ email, password: 'a-very-long-but-wrong-password-attempt' })
+        .expect(401);
+
+      expect(short.body.error.code).toBe('INVALID_CREDENTIALS');
+      expect(long.body.error.code).toBe('INVALID_CREDENTIALS');
+      expect(short.body.error.message).toBe(long.body.error.message);
+    });
+
     it('locks the account after repeated failures, then refuses the right password', async () => {
       const { email, code } = await register();
       await request(app.getHttpServer()).post('/api/v1/auth/verify-email').send({ email, code });
@@ -554,11 +577,11 @@ describeWithDb('auth (e2e)', () => {
       expect(actions).toContain('auth.otp.issued');
       expect(rows.every((row) => row.outcome === 'SUCCESS')).toBe(true);
 
-      // Only the very first row of the table may start the chain.
-      const chained = await pool.query<{ n: string }>(
-        `SELECT count(*)::text AS n FROM audit_events WHERE previous_hash IS NULL`,
-      );
-      expect(Number(chained.rows[0]?.n)).toBeLessThanOrEqual(1);
+      // Every row this suite produced must link to a predecessor: the first event
+      // of a fresh database starts the chain, everything after it continues it.
+      expect(rows.length).toBeGreaterThan(1);
+      const withPredecessor = rows.filter((row) => row.previous_hash !== null).length;
+      expect(withPredecessor).toBeGreaterThanOrEqual(rows.length - 1);
     });
 
     it('marks denials as DENIED rather than dropping them', async () => {

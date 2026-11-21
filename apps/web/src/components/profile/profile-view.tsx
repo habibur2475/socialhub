@@ -21,6 +21,7 @@ import { isApiFailure } from '@/lib/api-client';
 import { describeError } from '@/lib/form';
 import { createProfileApi } from '@/lib/profile-api';
 import { useSession } from '@/lib/session';
+import { Timeline } from '@/components/feed/timeline';
 import { FollowButton } from './follow-button';
 import { ProfileHeader } from './profile-header';
 
@@ -100,20 +101,26 @@ export const ProfileView = ({ username }: { readonly username: string }): React.
   const { profile } = state;
 
   return (
-    <ProfileHeader
-      profile={profile}
-      {...(profile.isSelf || !profile.canFollow
-        ? {}
-        : {
-            action: (
-              <FollowButton
-                accountId={profile.accountId}
-                isFollowing={profile.isFollowing}
-                followPending={profile.followPending}
-                onChanged={onChanged}
-              />
-            ),
-          })}
-    />
+    <div className="flex flex-col gap-lg">
+      <ProfileHeader
+        profile={profile}
+        {...(profile.isSelf || !profile.canFollow
+          ? {}
+          : {
+              action: (
+                <FollowButton
+                  accountId={profile.accountId}
+                  isFollowing={profile.isFollowing}
+                  followPending={profile.followPending}
+                  onChanged={onChanged}
+                />
+              ),
+            })}
+      />
+
+      {/* The timeline applies the same visibility rule as the header, so a
+          restricted profile shows no posts rather than a blank section. */}
+      <Timeline username={username} showComposer={false} emptyMessage="No posts yet." />
+    </div>
   );
 };

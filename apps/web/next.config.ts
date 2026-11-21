@@ -41,7 +41,15 @@ const nextConfig: NextConfig = {
       ...config.resolve.alias,
       '@socialhub/config': path.resolve(__dirname, '../../libs/shared/config/src/index.ts'),
       '@socialhub/contracts': path.resolve(__dirname, '../../libs/shared/contracts/src/index.ts'),
-      '@socialhub/kernel': path.resolve(__dirname, '../../libs/shared/kernel/src/index.ts'),
+      // Exact-match aliases (`$`), not prefix aliases: a prefix alias for
+      // `@socialhub/kernel` would also capture `@socialhub/kernel/browser` and
+      // resolve it to the server-only barrel — which is the Node built-in leak
+      // this pair exists to prevent.
+      '@socialhub/kernel/browser$': path.resolve(
+        __dirname,
+        '../../libs/shared/kernel/src/browser.ts',
+      ),
+      '@socialhub/kernel$': path.resolve(__dirname, '../../libs/shared/kernel/src/index.ts'),
     };
 
     // The libraries use NodeNext resolution, so their internal imports carry a

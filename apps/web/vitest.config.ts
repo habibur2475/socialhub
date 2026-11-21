@@ -15,6 +15,11 @@ export default defineConfig({
       '@socialhub/config': fileURLToPath(
         new URL('../../libs/shared/config/src/index.ts', import.meta.url),
       ),
+      // Most-specific first: aliases are matched in order, so the browser entry
+      // must precede the server barrel or the subpath resolves to the wrong file.
+      '@socialhub/kernel/browser': fileURLToPath(
+        new URL('../../libs/shared/kernel/src/browser.ts', import.meta.url),
+      ),
       '@socialhub/kernel': fileURLToPath(
         new URL('../../libs/shared/kernel/src/index.ts', import.meta.url),
       ),

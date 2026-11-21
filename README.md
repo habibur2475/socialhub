@@ -16,13 +16,13 @@ Everything else is built on top of it; see [Roadmap](#roadmap).
 | ------------------------------------------------------------------- | ------ | ----------------------------------------- |
 | Domain kernel (money, permissions, sharding, policy, revenue split) | Done   | 47 unit tests                             |
 | Identity / RBAC / scope / audit schema                              | Done   | 9 invariant tests against real PostgreSQL |
-| Authentication (register, verify, login, refresh, logout, reset)    | Done   | 21 end-to-end tests over HTTP             |
-| Domain auth logic (password policy, OTP, tokens, redaction)         | Done   | 19 unit tests                             |
+| Authentication (register, verify, login, refresh, logout, reset)    | Done   | 30 end-to-end tests over HTTP             |
+| Domain auth logic (password policy, OTP, tokens, redaction)         | Done   | 19 domain + 6 config tests                |
 | Health probes (`/health/live`, `/health/ready`)                     | Done   | e2e                                       |
 | Migration runner with checksum guard                                | Done   | e2e + manual                              |
 | CI (format, typecheck, provision DB, test, build)                   | Done   | `.github/workflows/ci.yml`                |
 
-**96 automated tests**, all green, all run against real infrastructure locally.
+**105 automated tests**, all green — locally and in CI, against a real PostgreSQL.
 
 ---
 
@@ -177,6 +177,10 @@ pnpm -r build
 The database suites are genuine integration tests: they assert that Postgres
 itself refuses to violate the security invariants, rather than trusting the
 application layer to be careful.
+
+Tests resolve workspace packages from source, so `pnpm -r test` works on a clean
+checkout with no build step. The deployed artifact resolves the compiled output,
+which `pnpm -r build` produces in dependency order.
 
 ---
 

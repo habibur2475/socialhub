@@ -132,6 +132,253 @@ const countersOf = async (accountId: string): Promise<{ followers: number; follo
   };
 };
 
+describeWithDb('messaging schema', () => {
+  /**
+   * Creates a DIRECT thread with both participants, keyed the way the application
+   * keys it: the two ids sorted, so the pair is direction-independent.
+   */
+  const createDirect = async (a: string, b: string): Promise<string> => {
+    const id = randomUUID();
+    const dmKey = [a, b].sort().join(':');
+
+    await client.query(
+      `INSERT INTO message_threads (id, kind, direct_a_id, direct_b_id, dm_key, owner_id)
+       VALUES ($1, 'DIRECT', $2, $3, $4, $2)`,
+      [id, a, b, dmKey],
+    );
+    await client.query(
+      `INSERT INTO message_participants (thread_id, account_id) VALUES ($1, $2), ($1, $3)`,
+      [id, a, b],
+    );
+    return id;
+  };
+
+  it('allows one direct thread per pair, whichever direction it is created from', async () => {
+    const ada = await createUserWithProfile();
+    const grace = await createUserWithProfile();
+    await createDirect(ada, grace);
+
+    // The second insert is attempted from the other side, which is what a race
+    // between two "message" buttons looks like.
+    await expect(createDirect(grace, ada)).rejects.toThrow(/message_threads_dm_key|duplicate key/);
+  });
+
+  it('rejects a direct thread that points at itself or has no key', async () => {
+    const ada = await createUserWithProfile();
+
+    await expect(
+      client.query(
+        `INSERT INTO message_threads (id, kind, direct_a_id, direct_b_id, dm_key, owner_id)
+         VALUES ($1, 'DIRECT', $2, $2, $3, $2)`,
+        [randomUUID(), ada, `${ada}:${ada}`],
+      ),
+    ).rejects.toThrow(/message_threads_shape/);
+
+    await expect(
+      client.query(
+        `INSERT INTO message_threads (id, kind, direct_a_id, direct_b_id, dm_key, owner_id)
+         VALUES ($1, 'DIRECT', $2, $2, NULL, $2)`,
+        [randomUUID(), ada],
+      ),
+    ).rejects.toThrow(/message_threads_shape/);
+  });
+
+  it('requires a title on a group and forbids one on a direct thread', async () => {
+    const ada = await createUserWithProfile();
+
+    // A group without a title has no name to render in the list.
+    await expect(
+      client.query(`INSERT INTO message_threads (id, kind, owner_id) VALUES ($1, 'GROUP', $2)`, [
+        randomUUID(),
+        ada,
+      ]),
+    ).rejects.toThrow(/message_threads_group_needs_title/);
+  });
+
+  it('rejects a blank message and an over-long one', async () => {
+    const ada = await createUserWithProfile();
+    const grace = await createUserWithProfile();
+    const thread = await createDirect(ada, grace);
+
+    await expect(
+      client.query(
+        `INSERT INTO messages (id, thread_id, sender_id, body) VALUES ($1, $2, $3, '   ')`,
+        [randomUUID(), thread, ada],
+      ),
+    ).rejects.toThrow(/messages_body_not_blank/);
+
+    await expect(
+      client.query(
+        `INSERT INTO messages (id, thread_id, sender_id, body) VALUES ($1, $2, $3, $4)`,
+        [randomUUID(), thread, ada, 'x'.repeat(4_001)],
+      ),
+    ).rejects.toThrow(/messages_body_len/);
+  });
+
+  it('moves the thread summary forward only', async () => {
+    const ada = await createUserWithProfile();
+    const grace = await createUserWithProfile();
+    const thread = await createDirect(ada, grace);
+
+    // The first message always sets the summary: a new thread's last_message_at is
+    // `now()`, and a plain `<=` comparison would silently drop it via NULL.
+    await client.query(
+      `INSERT INTO messages (id, thread_id, sender_id, body) VALUES ($1, $2, $3, 'newest')`,
+      [randomUUID(), thread, ada],
+    );
+
+    // A backfilled older message must not rewind the inbox ordering.
+    await client.query(
+      `INSERT INTO messages (id, thread_id, sender_id, body, created_at)
+       VALUES ($1, $2, $3, 'backfill', now() - interval '1 day')`,
+      [randomUUID(), thread, grace],
+    );
+
+    const summary = await client.query<{ last_message_preview: string | null }>(
+      'SELECT last_message_preview FROM message_threads WHERE id = $1',
+      [thread],
+    );
+    expect(summary.rows[0]?.last_message_preview).toBe('newest');
+  });
+
+  /**
+   * A read cursor only advances. An out-of-order event from another device must
+   * not mark a message unread again.
+   */
+  it('never lets a read cursor retreat', async () => {
+    const ada = await createUserWithProfile();
+    const grace = await createUserWithProfile();
+    const thread = await createDirect(ada, grace);
+
+    const first = '0190f3c1-0000-7000-8000-000000000001';
+    const second = '0190f3c1-0000-7000-8000-000000000002';
+
+    await client.query(
+      'UPDATE message_participants SET last_read_message_id = $1 WHERE thread_id = $2 AND account_id = $3',
+      [second, thread, ada],
+    );
+    await client.query(
+      'UPDATE message_participants SET last_read_message_id = $1 WHERE thread_id = $2 AND account_id = $3',
+      [first, thread, ada],
+    );
+
+    const cursor = await client.query<{ last_read_message_id: string }>(
+      'SELECT last_read_message_id FROM message_participants WHERE thread_id = $1 AND account_id = $2',
+      [thread, ada],
+    );
+    expect(cursor.rows[0]?.last_read_message_id).toBe(second);
+  });
+
+  it('makes a conversation visible to its members only', async () => {
+    const ada = await createUserWithProfile();
+    const grace = await createUserWithProfile();
+    const outsider = await createUserWithProfile();
+    const thread = await createDirect(ada, grace);
+
+    const visible = async (viewer: string | null): Promise<boolean> => {
+      const result = await client.query<{ v: boolean }>(
+        'SELECT can_view_conversation($1, $2) AS v',
+        [thread, viewer],
+      );
+      return result.rows[0]?.v === true;
+    };
+
+    expect(await visible(ada)).toBe(true);
+    expect(await visible(grace)).toBe(true);
+    expect(await visible(outsider)).toBe(false);
+    // No viewer means no answer, and false is the only safe default.
+    expect(await visible(null)).toBe(false);
+  });
+
+  /** A block ends the conversation in both directions, history included. */
+  it('hides the conversation from both parties after a block', async () => {
+    const ada = await createUserWithProfile();
+    const grace = await createUserWithProfile();
+    const thread = await createDirect(ada, grace);
+
+    await client.query('INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)', [grace, ada]);
+
+    const visible = async (viewer: string): Promise<boolean> => {
+      const result = await client.query<{ v: boolean }>(
+        'SELECT can_view_conversation($1, $2) AS v',
+        [thread, viewer],
+      );
+      return result.rows[0]?.v === true;
+    };
+
+    // The blocker loses access too: keeping a channel they closed is not a feature.
+    expect(await visible(grace)).toBe(false);
+    expect(await visible(ada)).toBe(false);
+  });
+
+  /**
+   * In a group the rule is per-viewer, not global: a block between two *other*
+   * members must not silence the conversation for a bystander, but neither party
+   * to the block keeps access -- and a group is not a way around a block.
+   */
+  it('hides a group from each side of a block, and only from them', async () => {
+    const owner = await createUserWithProfile();
+    const member = await createUserWithProfile();
+    const blocked = await createUserWithProfile();
+
+    const thread = randomUUID();
+    await client.query(
+      `INSERT INTO message_threads (id, kind, owner_id, title) VALUES ($1, 'GROUP', $2, 'Release planning')`,
+      [thread, owner],
+    );
+    for (const account of [owner, member, blocked]) {
+      await client.query(
+        'INSERT INTO message_participants (thread_id, account_id) VALUES ($1, $2)',
+        [thread, account],
+      );
+    }
+
+    const visible = async (viewer: string): Promise<boolean> => {
+      const result = await client.query<{ v: boolean }>(
+        'SELECT can_view_conversation($1, $2) AS v',
+        [thread, viewer],
+      );
+      return result.rows[0]?.v === true;
+    };
+
+    expect(await visible(member)).toBe(true);
+
+    await client.query('INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)', [
+      owner,
+      blocked,
+    ]);
+
+    // Both parties to the block lose the group; the uninvolved member keeps it.
+    expect(await visible(owner)).toBe(false);
+    expect(await visible(blocked)).toBe(false);
+    expect(await visible(member)).toBe(true);
+  });
+
+  it('drops a member who left out of the visibility check', async () => {
+    const ada = await createUserWithProfile();
+    const grace = await createUserWithProfile();
+    const thread = await createDirect(ada, grace);
+
+    await client.query(
+      'UPDATE message_participants SET left_at = now() WHERE thread_id = $1 AND account_id = $2',
+      [thread, grace],
+    );
+
+    const result = await client.query<{ v: boolean }>('SELECT can_view_conversation($1, $2) AS v', [
+      thread,
+      grace,
+    ]);
+    expect(result.rows[0]?.v).toBe(false);
+
+    // The remaining participant keeps the thread.
+    const still = await client.query<{ v: boolean }>('SELECT can_view_conversation($1, $2) AS v', [
+      thread,
+      ada,
+    ]);
+    expect(still.rows[0]?.v).toBe(true);
+  });
+});
+
 describeWithDb('notifications, quiz and forum schema', () => {
   it('rejects an unknown notification kind', async () => {
     const recipient = await createUserWithProfile();

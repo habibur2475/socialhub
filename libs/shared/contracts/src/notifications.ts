@@ -12,6 +12,8 @@
 
 import { z } from 'zod';
 
+import type { MessageView, ThreadSummary } from './messaging.js';
+
 import { NOTIFICATION_KINDS, UNREAD_BADGE_CAP } from '@socialhub/kernel/browser';
 // Imported for local use *and* re-exported below: `export … from` re-exports do not
 // introduce a local binding, so the response type would otherwise not see it.
@@ -99,7 +101,22 @@ export type NotificationSummaryResponse = {
 };
 
 /** The events a real-time stream may deliver. */
-export const REALTIME_EVENT_TYPES = ['notification', 'unread', 'ping'] as const;
+/**
+ * Every frame type the stream can carry.
+ *
+ * Messaging shares the connection: one open stream per tab, not two. `message` and
+ * `thread-read` come from the messaging module, `thread` from group changes, and
+ * `message-deleted` from a soft delete — all published to the same hub.
+ */
+export const REALTIME_EVENT_TYPES = [
+  'notification',
+  'unread',
+  'ping',
+  'message',
+  'message-deleted',
+  'thread',
+  'thread-read',
+] as const;
 
 export type RealtimeEventType = (typeof REALTIME_EVENT_TYPES)[number];
 
@@ -116,7 +133,24 @@ export type RealtimeEventType = (typeof REALTIME_EVENT_TYPES)[number];
 export type RealtimeFrame =
   | { readonly type: 'notification'; readonly notification: NotificationResponse }
   | { readonly type: 'unread'; readonly unreadCount: number; readonly badge: string }
-  | { readonly type: 'ping'; readonly at: string };
+  | { readonly type: 'ping'; readonly at: string }
+  | {
+      readonly type: 'message';
+      readonly threadId: string;
+      readonly message: MessageView;
+      /** The recipient's unread count in that thread after this message. */
+      readonly unreadCount: number;
+      /** Present on a recipient's frame, so their inbox can reorder without a fetch. */
+      readonly thread?: ThreadSummary;
+    }
+  | {
+      readonly type: 'message-deleted';
+      readonly threadId: string;
+      readonly messageId: string;
+      readonly message: MessageView;
+    }
+  | { readonly type: 'thread'; readonly thread: ThreadSummary }
+  | { readonly type: 'thread-read'; readonly threadId: string; readonly unreadCount: number };
 
 /** The SSE endpoint, relative to the API prefix. */
 export const NOTIFICATION_STREAM_PATH = '/notifications/stream';

@@ -7,7 +7,7 @@
  * would cost CPU on every request to catch a bug that a compiler already catches.
  */
 
-import type { ErrorCode } from '@socialhub/kernel';
+import type { ErrorCode } from '@socialhub/kernel/browser';
 
 export type AccountType = 'USER' | 'STAFF' | 'ROOT';
 

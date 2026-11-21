@@ -15,6 +15,7 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { ProfileModule } from './modules/profile/profile.module.js';
+import { FeedModule } from './modules/feed/feed.module.js';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { ProfileModule } from './modules/profile/profile.module.js';
     ]),
     AuthModule,
     ProfileModule,
+    FeedModule,
     HealthModule,
   ],
   providers: [

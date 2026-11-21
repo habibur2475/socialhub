@@ -124,6 +124,241 @@ const countersOf = async (accountId: string): Promise<{ followers: number; follo
   };
 };
 
+describeWithDb('feed schema', () => {
+  /** Inserts a post directly, so the test controls visibility and audience. */
+  const createPost = async (
+    authorId: string,
+    overrides: {
+      body?: string;
+      visibility?: string;
+      replyTo?: string | null;
+      repostOf?: string | null;
+      audience?: readonly string[];
+    } = {},
+  ): Promise<string> => {
+    const id = randomUUID();
+    await client.query(
+      `INSERT INTO posts (id, account_id, body, visibility, reply_to, repost_of)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        id,
+        authorId,
+        overrides.body ?? 'hello world',
+        overrides.visibility ?? 'PUBLIC',
+        overrides.replyTo ?? null,
+        overrides.repostOf ?? null,
+      ],
+    );
+    for (const viewer of overrides.audience ?? []) {
+      await client.query('INSERT INTO post_audience (post_id, account_id) VALUES ($1, $2)', [
+        id,
+        viewer,
+      ]);
+    }
+    return id;
+  };
+
+  const canView = async (postId: string, viewerId: string | null): Promise<boolean> => {
+    const result = await client.query<{ visible: boolean }>(
+      'SELECT can_view_post($1, $2) AS visible',
+      [postId, viewerId],
+    );
+    return result.rows[0]?.visible === true;
+  };
+
+  it('rejects blank and unbounded post bodies', async () => {
+    const author = await createUserWithProfile();
+    await expect(createPost(author, { body: '   ' })).rejects.toThrow(/posts_body_not_blank/);
+    await expect(createPost(author, { body: 'x'.repeat(5001) })).rejects.toThrow(/posts_body_len/);
+  });
+
+  it('rejects an unknown post visibility', async () => {
+    const author = await createUserWithProfile();
+    await expect(createPost(author, { visibility: 'FRIENDS' })).rejects.toThrow(
+      /posts_visibility_allowed/,
+    );
+  });
+
+  it('refuses to let a post reference itself', async () => {
+    const author = await createUserWithProfile();
+    const id = randomUUID();
+    await expect(
+      client.query(`INSERT INTO posts (id, account_id, body, reply_to) VALUES ($1, $2, 'x', $1)`, [
+        id,
+        author,
+      ]),
+    ).rejects.toThrow(/posts_not_self_reply/);
+  });
+
+  it('makes a public post visible to anyone, and hidden from nobody', async () => {
+    const author = await createUserWithProfile();
+    const stranger = await createUserWithProfile();
+    const post = await createPost(author, { visibility: 'PUBLIC' });
+
+    expect(await canView(post, stranger)).toBe(true);
+    expect(await canView(post, author)).toBe(true);
+  });
+
+  it('shows a FOLLOWERS post only to accepted followers', async () => {
+    const author = await createUserWithProfile();
+    const follower = await createUserWithProfile();
+    const stranger = await createUserWithProfile();
+    const post = await createPost(author, { visibility: 'FOLLOWERS' });
+
+    expect(await canView(post, stranger)).toBe(false);
+
+    await follow(follower, author, false); // pending request: not an edge yet
+    expect(await canView(post, follower)).toBe(false);
+
+    await client.query(
+      'UPDATE follows SET accepted_at = now() WHERE follower_id = $1 AND followee_id = $2',
+      [follower, author],
+    );
+    expect(await canView(post, follower)).toBe(true);
+  });
+
+  it('keeps a private post to its author', async () => {
+    const author = await createUserWithProfile();
+    const follower = await createUserWithProfile();
+    const post = await createPost(author, { visibility: 'PRIVATE' });
+
+    await follow(follower, author);
+    expect(await canView(post, follower)).toBe(false);
+    expect(await canView(post, author)).toBe(true);
+  });
+
+  /**
+   * A block must defeat a live follow. This is the same ordering as the profile
+   * rules, and the reason it is tested here as well is that the feed reads
+   * through SQL, not through the service.
+   */
+  it('hides a post across a block, even from a follower', async () => {
+    const author = await createUserWithProfile();
+    const follower = await createUserWithProfile();
+    const post = await createPost(author, { visibility: 'PUBLIC' });
+
+    await follow(follower, author);
+    expect(await canView(post, follower)).toBe(true);
+
+    await client.query('INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)', [
+      author,
+      follower,
+    ]);
+    expect(await canView(post, follower)).toBe(false);
+    // The block is symmetric: the author loses sight of the blocked party's view
+    // of their own post, and the blocked party sees nothing either way.
+    expect(await canView(post, author)).toBe(true);
+  });
+
+  it('hides a reply when the parent is not visible', async () => {
+    const author = await createUserWithProfile();
+    const stranger = await createUserWithProfile();
+
+    const parent = await createPost(author, { visibility: 'PRIVATE' });
+    const reply = await createPost(author, { visibility: 'PUBLIC', replyTo: parent });
+
+    // The reply is public, but replying to a private thread would leak that
+    // thread's content through the reply text.
+    expect(await canView(reply, stranger)).toBe(false);
+    expect(await canView(reply, author)).toBe(true);
+  });
+
+  it('treats a missing post and an anonymous viewer as not visible', async () => {
+    const author = await createUserWithProfile();
+    const post = await createPost(author);
+
+    expect(await canView(randomUUID(), author)).toBe(false);
+    expect(await canView(post, null)).toBe(false);
+  });
+
+  it('counts likes once per account and never below zero', async () => {
+    const author = await createUserWithProfile();
+    const liker = await createUserWithProfile();
+    const post = await createPost(author);
+
+    await client.query('INSERT INTO post_likes (post_id, account_id) VALUES ($1, $2)', [
+      post,
+      liker,
+    ]);
+    await expect(
+      client.query('INSERT INTO post_likes (post_id, account_id) VALUES ($1, $2)', [post, liker]),
+    ).rejects.toThrow(/duplicate key/);
+
+    const counted = await client.query<{ like_count: number }>(
+      'SELECT like_count FROM posts WHERE id = $1',
+      [post],
+    );
+    expect(counted.rows[0]?.like_count).toBe(1);
+
+    await client.query('DELETE FROM post_likes WHERE post_id = $1 AND account_id = $2', [
+      post,
+      liker,
+    ]);
+    const after = await client.query<{ like_count: number }>(
+      'SELECT like_count FROM posts WHERE id = $1',
+      [post],
+    );
+    expect(after.rows[0]?.like_count).toBe(0);
+  });
+
+  it('counts replies and reposts from the rows', async () => {
+    const author = await createUserWithProfile();
+    const parent = await createPost(author);
+
+    await createPost(author, { replyTo: parent });
+    const reposted = await createPost(await createUserWithProfile(), { repostOf: parent });
+
+    const counted = await client.query<{ reply_count: number; repost_count: number }>(
+      'SELECT reply_count, repost_count FROM posts WHERE id = $1',
+      [parent],
+    );
+    expect(counted.rows[0]).toEqual({ reply_count: 1, repost_count: 1 });
+    expect(reposted).not.toBe(parent);
+  });
+
+  /**
+   * The audience table is the consent record for FOLLOWERS visibility: it must
+   * be a snapshot, not a live join. A follower who arrives after publication is
+   * not in the audience and therefore does not receive the post in their
+   * timeline.
+   */
+  it('does not add a later follower to an existing audience', async () => {
+    const author = await createUserWithProfile();
+    const early = await createUserWithProfile();
+    const late = await createUserWithProfile();
+
+    await follow(early, author);
+    const post = await createPost(author, { visibility: 'FOLLOWERS', audience: [early] });
+
+    await follow(late, author);
+
+    const { rows } = await client.query<{ account_id: string }>(
+      'SELECT account_id FROM post_audience WHERE post_id = $1',
+      [post],
+    );
+    expect(rows.map((row) => row.account_id)).toEqual([early]);
+  });
+
+  it('removes audience rows and likes when the post is deleted', async () => {
+    const author = await createUserWithProfile();
+    const follower = await createUserWithProfile();
+
+    await follow(follower, author);
+    const post = await createPost(author, { visibility: 'FOLLOWERS', audience: [follower] });
+    await client.query('INSERT INTO post_likes (post_id, account_id) VALUES ($1, $2)', [
+      post,
+      follower,
+    ]);
+
+    await client.query('DELETE FROM posts WHERE id = $1', [post]);
+
+    const audience = await client.query('SELECT 1 FROM post_audience WHERE post_id = $1', [post]);
+    const likes = await client.query('SELECT 1 FROM post_likes WHERE post_id = $1', [post]);
+    expect(audience.rowCount).toBe(0);
+    expect(likes.rowCount).toBe(0);
+  });
+});
+
 describeWithDb('social graph schema', () => {
   it('defaults a new profile to PUBLIC visibility', async () => {
     const id = await createUserWithProfile();

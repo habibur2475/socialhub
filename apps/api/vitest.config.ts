@@ -7,7 +7,13 @@ export default defineConfig({
     // Workspace libraries resolve to source under the test runner, so `pnpm test`
     // works on a clean checkout with no build step. The deployed artifact loads
     // the compiled JS declared in each package's `exports`.
+    // Ordered most-specific first: the alias list is matched in order, so
+    // `@socialhub/kernel/browser` must be listed before `@socialhub/kernel`
+    // or it resolves to the server-only barrel.
     alias: {
+      '@socialhub/kernel/browser': fileURLToPath(
+        new URL('../../libs/shared/kernel/src/browser.ts', import.meta.url),
+      ),
       '@socialhub/kernel': fileURLToPath(
         new URL('../../libs/shared/kernel/src/index.ts', import.meta.url),
       ),

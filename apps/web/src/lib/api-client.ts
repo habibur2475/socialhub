@@ -29,7 +29,7 @@ import {
   type ApiErrorBody,
   type ValidationIssue,
 } from '@socialhub/contracts';
-import type { ErrorCode } from '@socialhub/kernel';
+import type { ErrorCode } from '@socialhub/kernel/browser';
 
 export type ApiFailure = {
   readonly kind: 'api';

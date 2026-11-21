@@ -114,6 +114,7 @@ Detailed documents live in [`docs/`](docs):
 - [`docs/data-model.md`](docs/data-model.md) — schema, sharding, indexes, growth path
 - [`docs/auth-flows.md`](docs/auth-flows.md) — every authentication flow, step by step
 - [`docs/design-system.md`](docs/design-system.md) — tokens, themes, accessibility, JS budget
+- [`docs/live-demo.md`](docs/live-demo.md) — demo accounts and a guided tour of the running app
 
 ### The access model in one paragraph
 

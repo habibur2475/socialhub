@@ -40,6 +40,8 @@ import type { ProfileStore, SocialGraphStore } from './application/ports.js';
       inject: [PROFILE_STORE, SOCIAL_GRAPH_STORE, AUDIT_SINK],
     },
   ],
-  exports: [PROFILE_SERVICE],
+  // PROFILE_STORE is exported so the feed module can resolve a username to an
+  // account id without owning a second query against user_profiles.
+  exports: [PROFILE_SERVICE, PROFILE_STORE],
 })
 export class ProfileModule {}

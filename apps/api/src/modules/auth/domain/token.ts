@@ -13,6 +13,12 @@
  */
 
 import { createHash, randomBytes } from 'node:crypto';
+import {
+  CSRF_COOKIE_NAME as CSRF_COOKIE_NAME_SHARED,
+  CSRF_HEADER_NAME as CSRF_HEADER_NAME_SHARED,
+  REFRESH_COOKIE_NAME as REFRESH_COOKIE_NAME_SHARED,
+  REFRESH_COOKIE_PATH as REFRESH_COOKIE_PATH_SHARED,
+} from '@socialhub/contracts';
 
 export const ACCESS_TOKEN_AUDIENCE = 'socialhub-api';
 
@@ -64,8 +70,8 @@ export const isWellFormedRefreshToken = (token: string): boolean =>
   REFRESH_TOKEN_PATTERN.test(token);
 
 /** CSRF binding is enforced by the cookie policy; this is the client-facing name. */
-export const REFRESH_COOKIE_NAME = '__Host-sh_rt';
-export const CSRF_COOKIE_NAME = '__Host-sh_csrf';
-export const CSRF_HEADER_NAME = 'x-csrf-token';
+export const REFRESH_COOKIE_NAME: string = REFRESH_COOKIE_NAME_SHARED;
+export const CSRF_COOKIE_NAME = CSRF_COOKIE_NAME_SHARED;
+export const CSRF_HEADER_NAME = CSRF_HEADER_NAME_SHARED;
 
-export const REFRESH_COOKIE_PATH = '/api/v1/auth';
+export const REFRESH_COOKIE_PATH = REFRESH_COOKIE_PATH_SHARED;

@@ -1,0 +1,20 @@
+# Build output. Formatting generated files is busywork, and checking them makes
+# `format:check` fail on artifacts nobody wrote by hand.
+.next/
+dist/
+build/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Tooling scratch
+.devtools/
+node_modules/
+
+# The service worker is hand-written but deliberately unminified prose; Prettier
+# would reflow the long lines and make it harder to read in devtools.
+apps/web/public/sw.js
+
+# Lockfiles are machine-generated
+pnpm-lock.yaml

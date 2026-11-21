@@ -16,6 +16,9 @@
   "references": [
     {
       "path": "../../libs/shared/kernel/tsconfig.build.json"
+    },
+    {
+      "path": "../../libs/shared/contracts/tsconfig.build.json"
     }
   ],
   "include": ["src/**/*.ts"],

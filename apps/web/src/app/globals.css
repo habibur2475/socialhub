@@ -1,0 +1,180 @@
+/**
+ * Global stylesheet.
+ *
+ * Order is deliberate:
+ *   1. Tailwind layers.
+ *   2. Design tokens as CSS custom properties, generated from `@socialhub/config`.
+ *   3. Base element styles — typography, focus, scroll behaviour.
+ *   4. Component-level primitives that are cheaper as CSS than as utilities.
+ *
+ * Colours are stored as space-separated RGB channels (`15 23 42`) rather than hex,
+ * because Tailwind's `rgb(var(--x) / <alpha-value>)` syntax needs channels to apply
+ * an opacity modifier. Storing hex would make `bg-surface/50` silently produce
+ * nothing.
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------------- */
+/* Design tokens                                                             */
+/* ------------------------------------------------------------------------- */
+
+@layer base {
+  :root {
+    /* Light theme. Values mirror `lightTheme` in @socialhub/config. */
+    --canvas: 248 250 252;
+    --surface: 255 255 255;
+    --surface-raised: 255 255 255;
+    --border: 226 232 240;
+    --border-strong: 100 116 139;
+    --text: 15 23 42;
+    --text-muted: 71 85 105;
+    --text-inverted: 255 255 255;
+    --primary: 67 56 202;
+    --primary-hover: 55 48 163;
+    --primary-contrast: 255 255 255;
+    --accent: 99 102 241;
+    --success: 4 120 87;
+    --success-surface: 236 253 245;
+    --warning: 146 64 14;
+    --warning-surface: 255 251 235;
+    --danger: 225 29 72;
+    --danger-surface: 255 241 242;
+    --focus-ring: 99 102 241;
+
+    --shadow-sm: 0 1px 2px rgb(16 24 40 / 0.06);
+    --shadow-md: 0 2px 8px rgb(16 24 40 / 0.08);
+    --shadow-lg: 0 8px 24px rgb(16 24 40 / 0.1);
+
+    /* Any token that changes per theme belongs here, not in a `dark:` variant. */
+    color-scheme: light;
+  }
+
+  [data-theme='dark'] {
+    --canvas: 2 6 23;
+    --surface: 15 23 42;
+    --surface-raised: 21 31 52;
+    --border: 30 41 59;
+    --border-strong: 100 116 139;
+    --text: 248 250 252;
+    --text-muted: 148 163 184;
+    --text-inverted: 15 23 42;
+    --primary: 129 140 248;
+    --primary-hover: 165 180 252;
+    --primary-contrast: 2 6 23;
+    --accent: 199 210 254;
+    --success: 52 211 153;
+    --success-surface: 2 44 34;
+    --warning: 251 191 36;
+    --warning-surface: 69 26 3;
+    --danger: 251 113 133;
+    --danger-surface: 76 5 25;
+    --focus-ring: 199 210 254;
+
+    /* Lighter, lower-alpha shadows: black-on-dark reads as a hole, not a lift. */
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-md: 0 2px 8px rgb(0 0 0 / 0.5);
+    --shadow-lg: 0 8px 24px rgb(0 0 0 / 0.6);
+
+    color-scheme: dark;
+  }
+
+  html {
+    /* 16px root: the type scale is expressed in rem, so this is load-bearing. */
+    font-size: 100%;
+    -webkit-text-size-adjust: 100%;
+    /* Prevent the horizontal scroll caused by a single over-wide child. */
+    overflow-x: hidden;
+  }
+
+  body {
+    @apply bg-canvas text-text font-sans antialiased;
+    /* Smooth scrolling only where the user has not asked to reduce motion. */
+    @apply min-h-dvh;
+  }
+
+  *,
+  *::before,
+  *::after {
+    @apply border-border;
+  }
+
+  /* A visible focus ring is not optional: it is the only way a keyboard user
+     knows where they are. `:focus-visible` keeps it off mouse clicks. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-canvas;
+  }
+
+  ::selection {
+    @apply bg-primary/20;
+  }
+
+  /* Headings inherit the scale from utility classes; the reset only removes
+     the browser's arbitrary margins so spacing is always explicit. */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply m-0 font-semibold text-balance;
+  }
+
+  /* Long user-generated content must wrap rather than overflow. */
+  p {
+    @apply m-0;
+  }
+
+  /* Respect the OS setting. Motion is reduced, never removed: a transition that
+     is switched off entirely can leave a sticky header mid-position. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* ------------------------------------------------------------------------- */
+/* Component primitives                                                      */
+/* ------------------------------------------------------------------------- */
+
+@layer components {
+  /* The reading column. Capped so text never runs the width of a 2560px display,
+     where the eye cannot reliably find the start of the next line. */
+  .container-content {
+    @apply mx-auto w-full max-w-content px-md;
+  }
+
+  .container-shell {
+    @apply mx-auto w-full max-w-shell;
+  }
+
+  /* Visually hidden but available to assistive technology. Used for the skip
+     link's resting state and for labels on icon-only controls. */
+  .sr-only {
+    @apply absolute h-[1px] w-[1px] overflow-hidden whitespace-nowrap;
+    clip-path: inset(50%);
+  }
+
+  /* Skeleton → spinner → progress is the loading hierarchy. A skeleton is the
+     default because it preserves layout: the spinner is for an action with no
+     known shape, and the progress bar is for something measurable. */
+  .skeleton {
+    @apply rounded-md bg-border/60;
+    background-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgb(var(--surface) / 0.6) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    @apply animate-shimmer;
+  }
+}

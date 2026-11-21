@@ -37,6 +37,9 @@ to the API log rather than to a real inbox — that is why the demo accounts exi
 | `/quiz/new`         | Build a set: add questions and options, mark the key                  |
 | `/forum`            | Threads by category, with the seeded answered thread                  |
 | `/forum/new`        | Start a thread in a real category                                     |
+| `/messages`         | Conversations, unread counts, and a live list                         |
+| `/messages/new`     | Start a direct conversation or a group, by username                   |
+| `/messages/[id]`    | One transcript: live messages, read cursor, composer, delete          |
 
 ## What to try, in order
 
@@ -100,6 +103,59 @@ brings it back down. A blocked reader loses the thread from the list, the detail
 **and** the answers route at once — a block that stopped at the detail would still
 hand over the conversation.
 
+## Step 7: messaging
+
+### A direct conversation is one row per pair
+
+Sign in as **ada** and open `/u/grace`, then press **Message**. The conversation
+opens. Now sign in as **grace** in a second window and press **Message** on ada's
+profile: you land on **the same thread**, not a second one. Two people clicking at
+the same instant produce one row as well — the unordered `dm_key` has a unique
+index, and the insert is an upsert on it.
+
+A stranger cannot open a conversation at all: with no follow relationship in either
+direction the API answers `403`, and the reply is identical for an account that does
+not exist, so the endpoint cannot be used to discover who is reachable.
+
+### Messages arrive live on the same stream as notifications
+
+Open `/messages/[id]` as grace, then send from ada's window. The message appears in
+grace's transcript **and** moves the conversation to the top of her `/messages` list
+with an unread count, without a reload. There is no second connection: the messaging
+module publishes to the same hub the notification bell already listens on, because a
+tab holds one stream and the browser caps connections per origin.
+
+The unread count is not a flag. It is `count(*)` of other people's messages after the
+reader's `last_read_message_id`, so opening a thread clears it, a message you sent
+from another tab never raises it, and the cursor never moves backwards — an
+out-of-order event from a second device cannot mark a read message unread again.
+
+### A block ends the conversation in both directions
+
+With a conversation open, sign in as grace and block ada from `/u/ada`. Both windows
+lose the thread from the list and get `404` on the transcript and on any send — the
+history included. Messaging has no "block but keep reading": a blocked person who
+can still read has a channel, and a blocker who can still read has to keep looking
+at someone they removed.
+
+The same rule applies inside a group, and only to the two sides of the block: a
+group is not a way around it, while an uninvolved member keeps the conversation.
+
+### Groups are owned and lockable
+
+`/messages/new` → **A group**: name it, list usernames, and create it. The creator is
+the owner and can rename or lock it; a member who tries is refused with `403`, and a
+locked group refuses every send with `412` — including the owner's. Members can leave
+(`DELETE …/members/me`), and a direct conversation cannot be left at all, so nobody is
+left talking to themselves.
+
+### A retried send is not a second message
+
+Every send carries a `clientId`. The composer keeps the same id until the send
+succeeds, so a timeout followed by a press of **Send** returns the message that was
+already stored rather than posting it twice. Deleting is soft: the row stays, the body
+becomes _"This message was deleted"_, and only the sender can do it.
+
 ## Design decisions you can see on screen
 
 - **A hidden thing says so.** A redacted bio reads "This profile is restricted",
@@ -114,6 +170,9 @@ hand over the conversation.
   enforced in the type; every target is at least 44 px.
 - **Dark mode.** The toggle in the header follows the system by default and is
   applied before first paint, so there is no flash of the wrong theme.
+- **The conversation list never polls.** A message frame inserts or moves one row;
+  refetching the inbox per message would throw away the scroll position to learn what
+  the frame already carried.
 - **A notification is a sentence, not a row of icons.** "Ada and 2 others liked
   your post" is what a reader needs; the collapse count is spoken, not hidden.
 - **Grading is reproducible.** The score is a pure function of the questions, the

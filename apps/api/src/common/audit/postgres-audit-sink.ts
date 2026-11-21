@@ -12,10 +12,10 @@
 
 import { createHash } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
-import { DatabasePools } from '../../../database/pool.js';
-import type { CachePort } from '../../../common/cache/cache-port.js';
-import { JsonLogger } from '../../../common/logging/logger.js';
-import type { AuditEvent, AuditSink } from '../application/ports.js';
+import { DatabasePools } from '../../database/pool.js';
+import type { CachePort } from '../cache/cache-port.js';
+import { JsonLogger } from '../logging/logger.js';
+import type { AuditEvent, AuditSink } from './audit.port.js';
 
 const CHAIN_HEAD_KEY = 'audit:chain:head';
 

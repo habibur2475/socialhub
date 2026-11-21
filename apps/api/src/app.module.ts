@@ -14,6 +14,7 @@ import { ConfigModule } from './config/config.module.js';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { HealthModule } from './modules/health/health.module.js';
+import { ProfileModule } from './modules/profile/profile.module.js';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { HealthModule } from './modules/health/health.module.js';
       { name: 'sustained', ttl: 60_000, limit: 300 },
     ]),
     AuthModule,
+    ProfileModule,
     HealthModule,
   ],
   providers: [

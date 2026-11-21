@@ -16,7 +16,10 @@ export const ONE_TIME_CODE_STORE = Symbol('ONE_TIME_CODE_STORE');
 export const ACCESS_TOKEN_ISSUER = Symbol('ACCESS_TOKEN_ISSUER');
 export const LOGIN_THROTTLE = Symbol('LOGIN_THROTTLE');
 export const MAILER = Symbol('MAILER');
-export const AUDIT_SINK = Symbol('AUDIT_SINK');
-export const CLOCK = Symbol('CLOCK');
 export const IDS = Symbol('IDS');
 export const PERMISSIONS_FOR = Symbol('PERMISSIONS_FOR');
+
+// Cross-cutting capabilities live in `common/`; re-exported here so auth's own
+// modules keep a single import site for every token they bind.
+export { AUDIT_SINK } from '../../common/audit/audit.tokens.js';
+export { CLOCK } from '../../common/ids/clock.tokens.js';

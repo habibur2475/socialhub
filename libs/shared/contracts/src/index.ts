@@ -4,5 +4,6 @@ export * from './feed.js';
 export * from './notifications.js';
 export * from './quiz.js';
 export * from './forum.js';
+export * from './messaging.js';
 export * from './responses.js';
 export * from './http.js';

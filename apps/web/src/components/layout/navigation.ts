@@ -70,8 +70,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
     href: '/messages',
     icon: MessagesSquare,
     mobilePrimary: true,
-    description: 'Real-time conversations, delivered over web sockets.',
-    status: 'planned',
+    description: 'Direct and group conversations, delivered live over the shared stream.',
+    status: 'live',
   },
   {
     key: 'quiz',

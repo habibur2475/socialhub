@@ -22,6 +22,7 @@ import { describeError } from '@/lib/form';
 import { createProfileApi } from '@/lib/profile-api';
 import { useSession } from '@/lib/session';
 import { Timeline } from '@/components/feed/timeline';
+import { MessageButton } from '@/components/messaging/message-button';
 import { FollowButton } from './follow-button';
 import { ProfileHeader } from './profile-header';
 
@@ -107,13 +108,18 @@ export const ProfileView = ({ username }: { readonly username: string }): React.
         {...(profile.isSelf || !profile.canFollow
           ? {}
           : {
+              // Follow and Message sit together: both are "reach this person", and a
+              // profile that can be followed but not messaged is a dead end.
               action: (
-                <FollowButton
-                  accountId={profile.accountId}
-                  isFollowing={profile.isFollowing}
-                  followPending={profile.followPending}
-                  onChanged={onChanged}
-                />
+                <div className="flex items-center gap-xs">
+                  <MessageButton accountId={profile.accountId} />
+                  <FollowButton
+                    accountId={profile.accountId}
+                    isFollowing={profile.isFollowing}
+                    followPending={profile.followPending}
+                    onChanged={onChanged}
+                  />
+                </div>
               ),
             })}
       />

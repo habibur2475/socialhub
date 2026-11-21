@@ -13,27 +13,28 @@ the web shell it runs in**. Everything else is built on top of it; see
 
 ## What is implemented and verified
 
-| Area                                                                | Status | Verification                               |
-| ------------------------------------------------------------------- | ------ | ------------------------------------------ |
-| Domain kernel (money, permissions, sharding, policy, revenue split) | Done   | 47 unit tests                              |
-| Notifications policy (blocks, self-actions, mentions, badge cap)    | Done   | 15 unit tests                              |
-| Quiz grading rules (pure, deterministic, unanswered counted)        | Done   | 16 unit tests                              |
-| Identity / RBAC / scope / audit schema                              | Done   | 42 invariant tests against real PostgreSQL |
-| Authentication (register, verify, login, refresh, logout, reset)    | Done   | 26 end-to-end tests over HTTP              |
-| Domain auth logic (password policy, OTP, tokens, redaction)         | Done   | 19 unit tests                              |
-| Shared API contracts (one schema for server and browser)            | Done   | 22 contract tests                          |
-| Design tokens and WCAG-verified themes                              | Done   | 30 contrast and token tests                |
-| Web app: app shell, auth UI, PWA, dark mode                         | Done   | 71 component and client tests              |
-| Profile and social graph                                            | Done   | 21 unit + 24 end-to-end tests              |
-| Feed (posts, timelines, likes, visibility)                          | Done   | 18 unit + 21 end-to-end tests              |
-| Notifications with live SSE delivery                                | Done   | 16 unit + 15 end-to-end tests              |
-| Quiz (authoring, attempts, timed, grading, key disclosure)          | Done   | 16 unit + 14 end-to-end tests              |
-| Forum (categories, threads, answers, accept, locks, blocks)         | Done   | 15 unit + 12 end-to-end tests              |
-| Health probes (`/health/live`, `/health/ready`)                     | Done   | e2e                                        |
-| Migration runner with checksum guard                                | Done   | e2e + manual                               |
-| CI (format, typecheck, DB, build, budget, test)                     | Done   | `.github/workflows/ci.yml`                 |
+| Area                                                                       | Status | Verification                               |
+| -------------------------------------------------------------------------- | ------ | ------------------------------------------ |
+| Domain kernel (money, permissions, policy, feed, notifications, messaging) | Done   | 134 unit tests                             |
+| Notifications policy (blocks, self-actions, mentions, badge cap)           | Done   | 15 of the 134 kernel tests                 |
+| Quiz grading rules (pure, deterministic, unanswered counted)               | Done   | 16 of the 134 kernel tests                 |
+| Identity / RBAC / scope / audit schema                                     | Done   | 52 invariant tests against real PostgreSQL |
+| Authentication (register, verify, login, refresh, logout, reset)           | Done   | 26 end-to-end tests over HTTP              |
+| Domain auth logic (password policy, OTP, tokens, redaction)                | Done   | 19 unit tests                              |
+| Shared API contracts (one schema for server and browser)                   | Done   | 29 contract tests                          |
+| Design tokens and WCAG-verified themes                                     | Done   | 30 contrast and token tests                |
+| Web app: app shell, auth UI, PWA, dark mode                                | Done   | 78 component and client tests              |
+| Profile and social graph                                                   | Done   | 21 unit + 24 end-to-end tests              |
+| Feed (posts, timelines, likes, visibility)                                 | Done   | 18 unit + 21 end-to-end tests              |
+| Notifications with live SSE delivery                                       | Done   | 16 unit + 15 end-to-end tests              |
+| Quiz (authoring, attempts, timed, grading, key disclosure)                 | Done   | 16 unit + 14 end-to-end tests              |
+| Forum (categories, threads, answers, accept, locks, blocks)                | Done   | 15 unit + 12 end-to-end tests              |
+| Messaging (direct, groups, read cursors, blocks, live delivery)            | Done   | 16 unit + 23 end-to-end tests              |
+| Health probes (`/health/live`, `/health/ready`)                            | Done   | e2e                                        |
+| Migration runner with checksum guard                                       | Done   | e2e + manual                               |
+| CI (format, typecheck, DB, build, budget, test)                            | Done   | `.github/workflows/ci.yml`                 |
 
-**490 automated tests**, all green — locally and in CI, against real infrastructure.
+**579 automated tests**, all green — locally and in CI, against real infrastructure.
 Every route ships **100–137 kB** of compressed JavaScript, enforced by
 `pnpm check:budget`.
 
@@ -212,7 +213,8 @@ application layer to be careful.
 Phase 1 (this repository): foundation, domain kernel, identity schema, authentication.
 Phase 2: web app shell and PWA, profile and social graph, feed.
 Phase 3: notifications and real-time delivery, quiz, forum.
-Phase 4: blog, tools, messaging over the WebSocket gateway that shares the hub.
+Phase 4: blog, tools, messaging — **messaging shipped** (direct and group conversations over
+Phase 3's SSE hub, with read cursors, blocks and idempotent sends); blog and tools are next.
 Phase 5: marketplace (e-commerce, freelance, jobs) and advertising.
 Phase 6: Go finance service, Python recommendation service, event bus.
 Phase 7: search, analytics, Kubernetes autoscaling, multi-shard rollout.

@@ -19,6 +19,7 @@ import { FeedModule } from './modules/feed/feed.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { QuizModule } from './modules/quiz/quiz.module.js';
 import { ForumModule } from './modules/forum/forum.module.js';
+import { MessagingModule } from './modules/messaging/messaging.module.js';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { ForumModule } from './modules/forum/forum.module.js';
     NotificationsModule,
     QuizModule,
     ForumModule,
+    MessagingModule,
     HealthModule,
   ],
   providers: [

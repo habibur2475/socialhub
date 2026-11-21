@@ -57,6 +57,14 @@ type NotificationContextValue = {
   markAllRead: () => Promise<void>;
   /** Subscribes to live notifications. Returns an unsubscribe function. */
   subscribe: (listener: (notification: NotificationResponse) => void) => () => void;
+  /**
+   * Subscribes to every frame on the stream, typed as `unknown`.
+   *
+   * Messaging listens here rather than opening its own connection: the browser caps
+   * per-origin connections, and a second held-open response would compete with ordinary
+   * requests. The listener receives the already-parsed frame body.
+   */
+  subscribeToFrames: (listener: (data: unknown) => void) => () => void;
 };
 
 const NotificationContext = createContext<NotificationContextValue | null>(null);
@@ -78,6 +86,7 @@ export const NotificationProvider = ({
   // Listeners live in a ref so subscribing does not re-render the provider, and so the
   // stream callback always sees the current set without being re-created.
   const listeners = useRef(new Set<(notification: NotificationResponse) => void>());
+  const frameListeners = useRef(new Set<(data: unknown) => void>());
 
   const api = useMemo(() => createNotificationApi(client), [client]);
 
@@ -128,6 +137,16 @@ export const NotificationProvider = ({
         void retryInMs;
       },
       onFrame: (frame) => {
+        // Every frame reaches the raw subscribers first, so messaging sees frames this
+        // provider does not interpret (`message`, `thread`, `message-deleted`).
+        for (const listener of frameListeners.current) {
+          try {
+            listener(frame.data);
+          } catch {
+            // A broken subscriber must not take down the stream for the others.
+          }
+        }
+
         if (isUnreadFrame(frame)) {
           const count = (frame.data as { unreadCount: number }).unreadCount;
           setUnreadCountState(Math.max(count, 0));
@@ -163,6 +182,14 @@ export const NotificationProvider = ({
     setUnreadCountState(0);
   }, [api]);
 
+  const subscribeToFrames = useCallback((listener: (data: unknown) => void) => {
+    const set = frameListeners.current;
+    set.add(listener);
+    return () => {
+      set.delete(listener);
+    };
+  }, []);
+
   const subscribe = useCallback((listener: (notification: NotificationResponse) => void) => {
     const set = listeners.current;
     set.add(listener);
@@ -181,8 +208,18 @@ export const NotificationProvider = ({
       markRead,
       markAllRead,
       subscribe,
+      subscribeToFrames,
     }),
-    [unreadCount, status, latest, setUnreadCount, markRead, markAllRead, subscribe],
+    [
+      unreadCount,
+      status,
+      latest,
+      setUnreadCount,
+      markRead,
+      markAllRead,
+      subscribe,
+      subscribeToFrames,
+    ],
   );
 
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;

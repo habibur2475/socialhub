@@ -12,6 +12,7 @@
  */
 
 import {
+  Bell,
   Bookmark,
   Briefcase,
   GraduationCap,
@@ -48,11 +49,18 @@ export const NAV_ITEMS: readonly NavItem[] = [
     status: 'live',
   },
   {
+    key: 'notifications',
+    label: 'Notifications',
+    href: '/notifications',
+    icon: Bell,
+    description: 'Likes, replies, mentions and answers, delivered live.',
+    status: 'live',
+  },
+  {
     key: 'social',
     label: 'Social',
     href: '/social',
     icon: Users,
-    mobilePrimary: true,
     description: 'Profiles, the social graph, and posts.',
     status: 'planned',
   },
@@ -72,7 +80,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: GraduationCap,
     mobilePrimary: true,
     description: 'Practice sets, playlists, and timed exams.',
-    status: 'planned',
+    status: 'live',
   },
   {
     key: 'forum',
@@ -81,7 +89,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: Bookmark,
     mobilePrimary: true,
     description: 'Threaded discussion by topic.',
-    status: 'planned',
+    status: 'live',
   },
   {
     key: 'blog',

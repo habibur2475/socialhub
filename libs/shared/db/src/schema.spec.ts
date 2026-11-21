@@ -28,6 +28,14 @@ afterAll(async () => {
   await pool.end();
 });
 
+/**
+ * A category path unique to one test.
+ *
+ * Migration 0005 seeds `/general` and `/feedback` in every environment, so a test that
+ * inserts a fixed path would collide with the fixtures it is not testing.
+ */
+const uniquePath = (): string => `/${randomUUID().replaceAll('-', '').slice(0, 20)}`;
+
 /** Inserts a scope and returns its id. */
 const createScope = async (
   level: string,
@@ -243,9 +251,11 @@ describeWithDb('notifications, quiz and forum schema', () => {
     expect(counted.rows[0]?.attempt_count).toBe(1);
 
     const categoryId = randomUUID();
+    const slug = randomUUID().replaceAll('-', '').slice(0, 20);
+    const path = uniquePath();
     await client.query(
-      `INSERT INTO forum_categories (id, slug, name, path) VALUES ($1, 'general', 'General', '/general')`,
-      [categoryId],
+      `INSERT INTO forum_categories (id, slug, name, path) VALUES ($1, $2, 'General', $3)`,
+      [categoryId, slug, path],
     );
     const threadId = randomUUID();
     await client.query(
@@ -268,9 +278,11 @@ describeWithDb('notifications, quiz and forum schema', () => {
   it('allows at most one accepted answer per thread', async () => {
     const owner = await createUserWithProfile();
     const categoryId = randomUUID();
+    const slug = randomUUID().replaceAll('-', '').slice(0, 20);
+    const path = uniquePath();
     await client.query(
-      `INSERT INTO forum_categories (id, slug, name, path) VALUES ($1, 'help', 'Help', '/help')`,
-      [categoryId],
+      `INSERT INTO forum_categories (id, slug, name, path) VALUES ($1, $2, 'Help', $3)`,
+      [categoryId, slug, path],
     );
     const threadId = randomUUID();
     await client.query(
@@ -340,9 +352,11 @@ describeWithDb('notifications, quiz and forum schema', () => {
     const author = await createUserWithProfile();
     const reader = await createUserWithProfile();
     const categoryId = randomUUID();
+    const slug = randomUUID().replaceAll('-', '').slice(0, 20);
+    const path = uniquePath();
     await client.query(
-      `INSERT INTO forum_categories (id, slug, name, path) VALUES ($1, 'talk', 'Talk', '/talk')`,
-      [categoryId],
+      `INSERT INTO forum_categories (id, slug, name, path) VALUES ($1, $2, 'Talk', $3)`,
+      [categoryId, slug, path],
     );
     const threadId = randomUUID();
     await client.query(

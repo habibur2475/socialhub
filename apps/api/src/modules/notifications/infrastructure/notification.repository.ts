@@ -114,10 +114,18 @@ export class PostgresNotificationRepository implements NotificationStore {
                 LIMIT 5
              ) AS bounded
          ),
-         -- Counted only when this actor was not already the most recent face,
-         -- so a repeated like from the same person does not become "2 people".
+         -- Counted only when this actor is not already in the window, so a repeated
+         -- like from the same person does not become "2 people". Membership, not a
+         -- comparison with the newest face: an actor who liked, watched someone else
+         -- like, then unliked and re-liked is still one person — but comparing only
+         -- the head would count them twice.
+         --
+         -- The window is bounded at five, so an actor who was pushed out of it is
+         -- counted again when they return. That over-counts by at most one per actor
+         -- beyond five on a single subject, which is the price of keeping the row
+         -- small; the true number of distinct actors is not stored anywhere.
          actor_count = notifications.actor_count
-           + CASE WHEN notifications.recent_actor_ids[1] = EXCLUDED.actor_id THEN 0 ELSE 1 END,
+           + CASE WHEN EXCLUDED.actor_id = ANY (notifications.recent_actor_ids) THEN 0 ELSE 1 END,
          preview = COALESCE(EXCLUDED.preview, notifications.preview),
          kind = EXCLUDED.kind,
          subject_type = COALESCE(EXCLUDED.subject_type, notifications.subject_type),

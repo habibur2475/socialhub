@@ -27,6 +27,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
+import { NotificationBell } from '@/components/notifications/notification-bell';
 import { MOBILE_PRIMARY_ITEMS, NAV_ITEMS } from './navigation';
 import { ThemeToggle } from './theme-toggle';
 import { UserMenu } from './user-menu';
@@ -89,6 +90,7 @@ export const AppShell = ({ children }: { readonly children: ReactNode }): React.
         </Link>
 
         <div className="ml-auto flex items-center gap-xs">
+          <NotificationBell />
           <ThemeToggle className="hidden sm:inline-flex" />
           <UserMenu />
         </div>

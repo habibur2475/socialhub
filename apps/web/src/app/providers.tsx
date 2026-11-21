@@ -12,11 +12,19 @@
 import type { ReactNode } from 'react';
 
 import { ServiceWorkerRegistrar } from '@/components/pwa/service-worker-registrar';
+import { NotificationProvider } from '@/lib/notifications';
 import { SessionProvider } from '@/lib/session';
 
 export const Providers = ({ children }: { readonly children: ReactNode }): React.JSX.Element => (
   <SessionProvider>
-    {children}
-    <ServiceWorkerRegistrar />
+    {/*
+      The notification provider sits *inside* the session provider because it needs
+      the authenticated client to open its stream, and *outside* the app shell so the
+      badge can render in the header on every page.
+    */}
+    <NotificationProvider>
+      {children}
+      <ServiceWorkerRegistrar />
+    </NotificationProvider>
   </SessionProvider>
 );

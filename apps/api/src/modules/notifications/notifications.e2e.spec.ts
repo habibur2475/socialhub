@@ -229,6 +229,30 @@ describeWithDb('notifications (e2e)', () => {
       expect((items[0]?.['actors'] as unknown[]).length).toBe(1);
     });
 
+    /**
+     * Regression: the count was incremented unless the actor was the *newest* face, so
+     * this sequence — like, someone else likes, unlike, like again — counted the first
+     * actor twice. Membership in the actor window is the correct test.
+     */
+    it('does not double-count an actor who re-likes after someone else', async () => {
+      const author = await createActor();
+      const first = await createActor();
+      const second = await createActor();
+      const postId = await publish(author, 'interleaved');
+
+      await like(first, postId);
+      await like(second, postId);
+      await request(app.getHttpServer())
+        .delete(`/api/v1/posts/${postId}/like`)
+        .set(auth(first))
+        .expect(200);
+      await like(first, postId);
+
+      const { items } = await inbox(author);
+      expect(items[0]?.['actorCount']).toBe(2);
+      expect((items[0]?.['actors'] as { username: string }[])[0]?.username).toBe(first.username);
+    });
+
     it('bounds the actor list at five while counting them all', async () => {
       const author = await createActor();
       const postId = await publish(author, 'very viral');

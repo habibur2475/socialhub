@@ -124,6 +124,261 @@ const countersOf = async (accountId: string): Promise<{ followers: number; follo
   };
 };
 
+describeWithDb('notifications, quiz and forum schema', () => {
+  it('rejects an unknown notification kind', async () => {
+    const recipient = await createUserWithProfile();
+    const actor = await createUserWithProfile();
+
+    await expect(
+      client.query(
+        `INSERT INTO notifications (id, recipient_id, kind, actor_id, group_key)
+         VALUES ($1, $2, 'POKE', $3, 'x')`,
+        [randomUUID(), recipient, actor],
+      ),
+    ).rejects.toThrow(/notifications_kind_allowed/);
+  });
+
+  /**
+   * Collapsing is a storage concern: one row per (recipient, group_key) is what
+   * stops a viral post from creating thousands of rows.
+   */
+  it('collapses repeat notifications for the same group', async () => {
+    const recipient = await createUserWithProfile();
+    const actor = await createUserWithProfile();
+
+    await client.query(
+      `INSERT INTO notifications (id, recipient_id, kind, actor_id, group_key, actor_count)
+       VALUES ($1, $2, 'LIKE', $3, 'like:post-1', 1)`,
+      [randomUUID(), recipient, actor],
+    );
+
+    await expect(
+      client.query(
+        `INSERT INTO notifications (id, recipient_id, kind, actor_id, group_key)
+         VALUES ($1, $2, 'LIKE', $3, 'like:post-1')`,
+        [randomUUID(), recipient, actor],
+      ),
+    ).rejects.toThrow(/notifications_group_key|duplicate key/);
+  });
+
+  it('bounds the recent-actor array', async () => {
+    const recipient = await createUserWithProfile();
+    const actor = await createUserWithProfile();
+    const tooMany = Array.from({ length: 6 }, () => randomUUID());
+
+    await expect(
+      client.query(
+        `INSERT INTO notifications (id, recipient_id, kind, actor_id, group_key, recent_actor_ids)
+         VALUES ($1, $2, 'LIKE', $3, 'g', $4::uuid[])`,
+        [randomUUID(), recipient, actor, tooMany],
+      ),
+    ).rejects.toThrow(/notifications_recent_actors_bounded/);
+  });
+
+  it('requires quiz titles and question positions to be sane', async () => {
+    const owner = await createUserWithProfile();
+
+    await expect(
+      client.query(`INSERT INTO quiz_sets (id, owner_id, title) VALUES ($1, $2, '   ')`, [
+        randomUUID(),
+        owner,
+      ]),
+    ).rejects.toThrow(/quiz_sets_title_len/);
+
+    const setId = randomUUID();
+    await client.query(
+      `INSERT INTO quiz_sets (id, owner_id, title) VALUES ($1, $2, 'Algebra basics')`,
+      [setId, owner],
+    );
+
+    await client.query(
+      `INSERT INTO quiz_questions (id, set_id, prompt, position) VALUES ($1, $2, 'What is 2+2?', 1)`,
+      [randomUUID(), setId],
+    );
+    // Two questions cannot claim the same slot, or "question 2 of 5" is ambiguous.
+    await expect(
+      client.query(
+        `INSERT INTO quiz_questions (id, set_id, prompt, position) VALUES ($1, $2, 'Again?', 1)`,
+        [randomUUID(), setId],
+      ),
+    ).rejects.toThrow(/quiz_questions_position_unique|duplicate key/);
+  });
+
+  it('rejects an attempt whose score exceeds its maximum', async () => {
+    const owner = await createUserWithProfile();
+    const student = await createUserWithProfile();
+    const setId = randomUUID();
+    await client.query(`INSERT INTO quiz_sets (id, owner_id, title) VALUES ($1, $2, 'Set')`, [
+      setId,
+      owner,
+    ]);
+
+    await expect(
+      client.query(
+        `INSERT INTO quiz_attempts (id, set_id, account_id, score, max_score, submitted_at)
+         VALUES ($1, $2, $3, 11, 10, now())`,
+        [randomUUID(), setId, student],
+      ),
+    ).rejects.toThrow(/quiz_attempts_score_range/);
+  });
+
+  it('counts attempts and thread answers from the rows', async () => {
+    const owner = await createUserWithProfile();
+    const student = await createUserWithProfile();
+    const setId = randomUUID();
+    await client.query(`INSERT INTO quiz_sets (id, owner_id, title) VALUES ($1, $2, 'Counted')`, [
+      setId,
+      owner,
+    ]);
+    await client.query(`INSERT INTO quiz_attempts (id, set_id, account_id) VALUES ($1, $2, $3)`, [
+      randomUUID(),
+      setId,
+      student,
+    ]);
+
+    const counted = await client.query<{ attempt_count: number }>(
+      'SELECT attempt_count FROM quiz_sets WHERE id = $1',
+      [setId],
+    );
+    expect(counted.rows[0]?.attempt_count).toBe(1);
+
+    const categoryId = randomUUID();
+    await client.query(
+      `INSERT INTO forum_categories (id, slug, name, path) VALUES ($1, 'general', 'General', '/general')`,
+      [categoryId],
+    );
+    const threadId = randomUUID();
+    await client.query(
+      `INSERT INTO forum_threads (id, category_id, author_id, title, body)
+       VALUES ($1, $2, $3, 'A thread title', 'The body')`,
+      [threadId, categoryId, owner],
+    );
+    await client.query(
+      `INSERT INTO forum_answers (id, thread_id, author_id, body) VALUES ($1, $2, $3, 'An answer')`,
+      [randomUUID(), threadId, student],
+    );
+
+    const thread = await client.query<{ answer_count: number }>(
+      'SELECT answer_count FROM forum_threads WHERE id = $1',
+      [threadId],
+    );
+    expect(thread.rows[0]?.answer_count).toBe(1);
+  });
+
+  it('allows at most one accepted answer per thread', async () => {
+    const owner = await createUserWithProfile();
+    const categoryId = randomUUID();
+    await client.query(
+      `INSERT INTO forum_categories (id, slug, name, path) VALUES ($1, 'help', 'Help', '/help')`,
+      [categoryId],
+    );
+    const threadId = randomUUID();
+    await client.query(
+      `INSERT INTO forum_threads (id, category_id, author_id, title, body)
+       VALUES ($1, $2, $3, 'Need help', 'Please')`,
+      [threadId, categoryId, owner],
+    );
+
+    for (let index = 0; index < 2; index += 1) {
+      await client
+        .query(
+          `INSERT INTO forum_answers (id, thread_id, author_id, body, accepted_at)
+         VALUES ($1, $2, $3, 'Answer', now())`,
+          [randomUUID(), threadId, owner],
+        )
+        .catch((error: Error) => {
+          expect(error.message).toMatch(/forum_answers_one_accepted|duplicate key/);
+        });
+    }
+
+    const accepted = await client.query<{ n: string }>(
+      'SELECT count(*)::text AS n FROM forum_answers WHERE thread_id = $1 AND accepted_at IS NOT NULL',
+      [threadId],
+    );
+    expect(accepted.rows[0]?.n).toBe('1');
+  });
+
+  /**
+   * Quiz visibility mirrors post visibility, minus the audience snapshot: a set
+   * has a live visibility, not an addressed one.
+   */
+  it('enforces quiz set visibility', async () => {
+    const owner = await createUserWithProfile();
+    const follower = await createUserWithProfile();
+    const stranger = await createUserWithProfile();
+    const setId = randomUUID();
+
+    await client.query(
+      `INSERT INTO quiz_sets (id, owner_id, title, visibility)
+       VALUES ($1, $2, 'Followers only', 'FOLLOWERS')`,
+      [setId, owner],
+    );
+
+    const visible = async (viewer: string): Promise<boolean> => {
+      const result = await client.query<{ v: boolean }>('SELECT can_view_quiz_set($1, $2) AS v', [
+        setId,
+        viewer,
+      ]);
+      return result.rows[0]?.v === true;
+    };
+
+    expect(await visible(owner)).toBe(true);
+    expect(await visible(stranger)).toBe(false);
+
+    await follow(follower, owner);
+    expect(await visible(follower)).toBe(true);
+
+    await client.query('INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)', [
+      owner,
+      follower,
+    ]);
+    // The block severs the follow by trigger, and the visibility check denies too.
+    expect(await visible(follower)).toBe(false);
+  });
+
+  it('hides a forum thread across a block, in both directions', async () => {
+    const author = await createUserWithProfile();
+    const reader = await createUserWithProfile();
+    const categoryId = randomUUID();
+    await client.query(
+      `INSERT INTO forum_categories (id, slug, name, path) VALUES ($1, 'talk', 'Talk', '/talk')`,
+      [categoryId],
+    );
+    const threadId = randomUUID();
+    await client.query(
+      `INSERT INTO forum_threads (id, category_id, author_id, title, body)
+       VALUES ($1, $2, $3, 'Visible to all', 'Except one')`,
+      [threadId, categoryId, author],
+    );
+
+    const visible = async (viewer: string): Promise<boolean> => {
+      const result = await client.query<{ v: boolean }>('SELECT can_view_thread($1, $2) AS v', [
+        threadId,
+        viewer,
+      ]);
+      return result.rows[0]?.v === true;
+    };
+
+    expect(await visible(reader)).toBe(true);
+
+    await client.query('INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)', [
+      author,
+      reader,
+    ]);
+    expect(await visible(reader)).toBe(false);
+  });
+
+  it('rejects a malformed forum category path', async () => {
+    await expect(
+      client.query(
+        `INSERT INTO forum_categories (id, slug, name, path)
+         VALUES ($1, 'Talk Space', 'Talk', 'not-a-path')`,
+        [randomUUID()],
+      ),
+    ).rejects.toThrow(/forum_categories_(slug|path)_shape/);
+  });
+});
+
 describeWithDb('feed schema', () => {
   /** Inserts a post directly, so the test controls visibility and audience. */
   const createPost = async (

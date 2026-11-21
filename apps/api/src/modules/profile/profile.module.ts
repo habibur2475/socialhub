@@ -42,6 +42,8 @@ import type { ProfileStore, SocialGraphStore } from './application/ports.js';
   ],
   // PROFILE_STORE is exported so the feed module can resolve a username to an
   // account id without owning a second query against user_profiles.
-  exports: [PROFILE_SERVICE, PROFILE_STORE],
+  // SOCIAL_GRAPH_STORE is exported because the notification entitlement rule *is*
+  // the block rule, and a second implementation of it is a second answer.
+  exports: [PROFILE_SERVICE, PROFILE_STORE, SOCIAL_GRAPH_STORE],
 })
 export class ProfileModule {}

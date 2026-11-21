@@ -30,3 +30,5 @@ export * from './time.js';
 export * from './segments.js';
 export * from './relationships.js';
 export * from './feed.js';
+export * from './notifications.js';
+export * from './quiz.js';

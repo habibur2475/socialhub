@@ -16,6 +16,9 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { ProfileModule } from './modules/profile/profile.module.js';
 import { FeedModule } from './modules/feed/feed.module.js';
+import { NotificationsModule } from './modules/notifications/notifications.module.js';
+import { QuizModule } from './modules/quiz/quiz.module.js';
+import { ForumModule } from './modules/forum/forum.module.js';
 
 @Module({
   imports: [
@@ -30,6 +33,9 @@ import { FeedModule } from './modules/feed/feed.module.js';
     AuthModule,
     ProfileModule,
     FeedModule,
+    NotificationsModule,
+    QuizModule,
+    ForumModule,
     HealthModule,
   ],
   providers: [

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { canAuthenticate, canManageAccount, MAX_ROOT_ACCOUNTS, reservesIdentity } from './identity.js';
+import {
+  canAuthenticate,
+  canManageAccount,
+  MAX_ROOT_ACCOUNTS,
+  reservesIdentity,
+} from './identity.js';
 import { PERMISSIONS, PermissionMask, aggregatePermissions, permissionBit } from './permissions.js';
 import { evaluate, isResourceOwner, type Principal } from './policy.js';
 import { isWithinScope, appendScope, isLegalChild, rootPath } from './scope.js';
@@ -72,7 +77,13 @@ describe('permission mask', () => {
 describe('identity boundaries', () => {
   it('only ACTIVE accounts authenticate', () => {
     expect(canAuthenticate('ACTIVE')).toBe(true);
-    for (const state of ['PENDING_VERIFICATION', 'SUSPENDED', 'LOCKED', 'DEACTIVATED', 'SOFT_DELETED'] as const) {
+    for (const state of [
+      'PENDING_VERIFICATION',
+      'SUSPENDED',
+      'LOCKED',
+      'DEACTIVATED',
+      'SOFT_DELETED',
+    ] as const) {
       expect(canAuthenticate(state)).toBe(false);
     }
   });
@@ -104,11 +115,16 @@ describe('identity boundaries', () => {
 
 describe('policy evaluation', () => {
   it('denies non-active principals before anything else', () => {
-    const decision = evaluate(active({ state: 'LOCKED' }), [{ kind: 'permission', permission: 'user:read' }], {
-      targetScope: null,
-      resourceOwnerId: null,
-      attributes: {},
-    }, () => false);
+    const decision = evaluate(
+      active({ state: 'LOCKED' }),
+      [{ kind: 'permission', permission: 'user:read' }],
+      {
+        targetScope: null,
+        resourceOwnerId: null,
+        attributes: {},
+      },
+      () => false,
+    );
     expect(decision.allowed).toBe(false);
   });
 
@@ -137,20 +153,32 @@ describe('policy evaluation', () => {
   });
 
   it('enforces scope containment for scoped principals', () => {
-    const scoped = active({ scopes: ['01930000-0000-7000-8000-0000000000aa' as Principal['scopes'][number]] });
+    const scoped = active({
+      scopes: ['01930000-0000-7000-8000-0000000000aa' as Principal['scopes'][number]],
+    });
     const target = '01930000-0000-7000-8000-0000000000bb' as Principal['scopes'][number];
-    const inScope = evaluate(scoped, [{ kind: 'scope', scope: target, allowDescendants: true }], {
-      targetScope: target,
-      resourceOwnerId: null,
-      attributes: {},
-    }, () => true);
+    const inScope = evaluate(
+      scoped,
+      [{ kind: 'scope', scope: target, allowDescendants: true }],
+      {
+        targetScope: target,
+        resourceOwnerId: null,
+        attributes: {},
+      },
+      () => true,
+    );
     expect(inScope.allowed).toBe(true);
 
-    const outOfScope = evaluate(scoped, [{ kind: 'scope', scope: target, allowDescendants: true }], {
-      targetScope: target,
-      resourceOwnerId: null,
-      attributes: {},
-    }, () => false);
+    const outOfScope = evaluate(
+      scoped,
+      [{ kind: 'scope', scope: target, allowDescendants: true }],
+      {
+        targetScope: target,
+        resourceOwnerId: null,
+        attributes: {},
+      },
+      () => false,
+    );
     expect(outOfScope).toMatchObject({ allowed: false, reason: { kind: 'out_of_scope' } });
   });
 
@@ -198,6 +226,8 @@ describe('scope graph', () => {
     expect(appendScope({ path: root, level: 'COMPANY' }, 'REGION', 'socialhub')).toMatchObject({
       ok: false,
     });
-    expect(appendScope({ path: root, level: 'COMPANY' }, 'REGION', 'Bad Segment')).toMatchObject({ ok: false });
+    expect(appendScope({ path: root, level: 'COMPANY' }, 'REGION', 'Bad Segment')).toMatchObject({
+      ok: false,
+    });
   });
 });

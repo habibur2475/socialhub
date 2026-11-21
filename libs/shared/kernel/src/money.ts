@@ -36,7 +36,11 @@ export type Money = {
 
 export type MoneyError =
   | { readonly code: 'UNSUPPORTED_CURRENCY'; readonly currency: string }
-  | { readonly code: 'CURRENCY_MISMATCH'; readonly left: CurrencyCode; readonly right: CurrencyCode }
+  | {
+      readonly code: 'CURRENCY_MISMATCH';
+      readonly left: CurrencyCode;
+      readonly right: CurrencyCode;
+    }
   | { readonly code: 'NON_INTEGER_MINOR_UNIT'; readonly minor: number }
   | { readonly code: 'AMOUNT_OUT_OF_RANGE' }
   | { readonly code: 'NEGATIVE_AMOUNT'; readonly minor: number }
@@ -130,7 +134,9 @@ export const format = (amount: Money): string => {
   const exponent = CURRENCIES[amount.currency];
   if (exponent === 0) return `${amount.minor}`;
   const negative = amount.minor < 0;
-  const digits = Math.abs(amount.minor).toString().padStart(exponent + 1, '0');
+  const digits = Math.abs(amount.minor)
+    .toString()
+    .padStart(exponent + 1, '0');
   const whole = digits.slice(0, digits.length - exponent);
   const fraction = digits.slice(digits.length - exponent);
   return `${negative ? '-' : ''}${whole}.${fraction}`;
@@ -142,7 +148,8 @@ export const format = (amount: Money): string => {
  */
 export const parse = (input: string, currency: CurrencyCode): Result<Money, MoneyError> => {
   const exponent = CURRENCIES[currency];
-  const pattern = exponent === 0 ? /^-?(0|[1-9]\d*)$/ : new RegExp(`^-?(0|[1-9]\\d*)(\\.\\d{1,${exponent}})?$`);
+  const pattern =
+    exponent === 0 ? /^-?(0|[1-9]\d*)$/ : new RegExp(`^-?(0|[1-9]\\d*)(\\.\\d{1,${exponent}})?$`);
   if (!pattern.test(input)) return fail({ code: 'NON_INTEGER_MINOR_UNIT', minor: Number.NaN });
   const negative = input.startsWith('-');
   const [whole = '0', fraction = ''] = input.replace('-', '').split('.');

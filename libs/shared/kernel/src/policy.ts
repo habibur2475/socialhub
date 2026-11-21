@@ -84,7 +84,10 @@ export const evaluate = (
       }
       case 'any_permission': {
         if (!principal.permissions.hasAny(requirement.permissions)) {
-          return deny({ kind: 'missing_permission', permission: requirement.permissions.join('|') });
+          return deny({
+            kind: 'missing_permission',
+            permission: requirement.permissions.join('|'),
+          });
         }
         break;
       }

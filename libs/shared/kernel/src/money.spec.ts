@@ -27,7 +27,9 @@ describe('money', () => {
     const parsed = parse('1234.56', 'BDT');
     expect(parsed.ok && parsed.value.minor).toBe(123456);
     expect(parse('0.005', 'BDT').ok).toBe(false);
-    expect(parse('100', 'BDT').ok && parse('100', 'BDT')).toMatchObject({ value: { minor: 10000 } });
+    expect(parse('100', 'BDT').ok && parse('100', 'BDT')).toMatchObject({
+      value: { minor: 10000 },
+    });
     expect(parse('01.00', 'BDT').ok).toBe(false);
   });
 
@@ -49,7 +51,12 @@ describe('money', () => {
 
   it('conserves the total across many awkward splits', () => {
     for (let amount = 0; amount <= 500; amount += 1) {
-      for (const weights of [[1, 2, 3], [7, 11, 13], [1, 1], [9999, 1]]) {
+      for (const weights of [
+        [1, 2, 3],
+        [7, 11, 13],
+        [1, 1],
+        [9999, 1],
+      ]) {
         const result = allocate(bdt(amount), weights);
         expect(result.ok).toBe(true);
         if (!result.ok) continue;

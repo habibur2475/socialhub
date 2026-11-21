@@ -62,14 +62,27 @@ export const bucketForUser = (userId: string): Result<BucketId, ShardingError> =
   return ok(value as BucketId);
 };
 
-export const buildShardMap = (entries: readonly ShardMapEntry[], version: number): Result<ShardMap, ShardingError> => {
+export const buildShardMap = (
+  entries: readonly ShardMapEntry[],
+  version: number,
+): Result<ShardMap, ShardingError> => {
   const buckets = new Map<number, ShardLocation>();
   for (const entry of entries) {
-    if (!Number.isInteger(entry.bucket) || entry.bucket < 0 || entry.bucket >= VIRTUAL_BUCKET_COUNT) {
-      return fail({ code: 'INVALID_BUCKET_ASSIGNMENT', detail: `bucket out of range: ${entry.bucket}` });
+    if (
+      !Number.isInteger(entry.bucket) ||
+      entry.bucket < 0 ||
+      entry.bucket >= VIRTUAL_BUCKET_COUNT
+    ) {
+      return fail({
+        code: 'INVALID_BUCKET_ASSIGNMENT',
+        detail: `bucket out of range: ${entry.bucket}`,
+      });
     }
     if (buckets.has(entry.bucket)) {
-      return fail({ code: 'INVALID_BUCKET_ASSIGNMENT', detail: `duplicate bucket: ${entry.bucket}` });
+      return fail({
+        code: 'INVALID_BUCKET_ASSIGNMENT',
+        detail: `duplicate bucket: ${entry.bucket}`,
+      });
     }
     buckets.set(entry.bucket, entry.shard);
   }
@@ -77,7 +90,10 @@ export const buildShardMap = (entries: readonly ShardMapEntry[], version: number
 };
 
 /** Resolves the shard that owns a user. Read replicas are selected by the caller. */
-export const shardForUser = (userId: string, map: ShardMap): Result<ShardLocation, ShardingError> => {
+export const shardForUser = (
+  userId: string,
+  map: ShardMap,
+): Result<ShardLocation, ShardingError> => {
   const bucket = bucketForUser(userId);
   if (!bucket.ok) return bucket;
   const location = map.buckets.get(bucket.value);

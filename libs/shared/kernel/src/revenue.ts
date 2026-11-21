@@ -66,7 +66,10 @@ export const computeSplit = (request: SplitRequest): Result<SplitResult, SplitEr
 
   const weightSum = parties.reduce((sum, party) => sum + party.weightBps, 0);
   if (weightSum !== TOTAL_BPS) {
-    return fail({ code: 'INVALID_WEIGHTS', detail: `weights must total ${TOTAL_BPS}, received ${weightSum}` });
+    return fail({
+      code: 'INVALID_WEIGHTS',
+      detail: `weights must total ${TOTAL_BPS}, received ${weightSum}`,
+    });
   }
   for (const party of parties) {
     if (!Number.isInteger(party.weightBps) || party.weightBps <= 0) {
@@ -82,12 +85,16 @@ export const computeSplit = (request: SplitRequest): Result<SplitResult, SplitEr
   const distributable = money(distributableMinor, gross.currency);
   if (!distributable.ok) return distributable;
 
-  const shares = allocate(distributable.value, parties.map((party) => party.weightBps));
+  const shares = allocate(
+    distributable.value,
+    parties.map((party) => party.weightBps),
+  );
   if (!shares.ok) return shares;
 
   const lines: SplitLine[] = parties.map((party, index) => {
     const share = shares.value[index];
-    if (share === undefined) throw new RangeError('allocate returned a shorter result than requested');
+    if (share === undefined)
+      throw new RangeError('allocate returned a shorter result than requested');
     return { partyId: party.partyId, amount: share };
   });
 
@@ -107,7 +114,10 @@ export const checkConservation = (
   commission: Money,
   lines: readonly SplitLine[],
 ): Result<true, SplitError> => {
-  if (commission.currency !== gross.currency || lines.some((line) => line.amount.currency !== gross.currency)) {
+  if (
+    commission.currency !== gross.currency ||
+    lines.some((line) => line.amount.currency !== gross.currency)
+  ) {
     return fail({ code: 'CURRENCY_MISMATCH', left: gross.currency, right: commission.currency });
   }
   const distributed = commission.minor + lines.reduce((sum, line) => sum + line.amount.minor, 0);

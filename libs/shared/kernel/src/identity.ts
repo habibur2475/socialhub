@@ -39,7 +39,8 @@ const IDENTITY_RESERVING_STATES: ReadonlySet<AccountState> = new Set([
 
 export const canAuthenticate = (state: AccountState): boolean => AUTHENTICATABLE_STATES.has(state);
 
-export const reservesIdentity = (state: AccountState): boolean => IDENTITY_RESERVING_STATES.has(state);
+export const reservesIdentity = (state: AccountState): boolean =>
+  IDENTITY_RESERVING_STATES.has(state);
 
 /**
  * Whether an actor may operate on a target account.

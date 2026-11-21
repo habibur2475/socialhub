@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { computeSplit, timeDecayBps } from './revenue.js';
 import { convert } from './currency.js';
 import { money } from './money.js';
-import { bucketForUser, buildShardMap, evenBucketDistribution, shardForUser, VIRTUAL_BUCKET_COUNT } from './sharding.js';
+import {
+  bucketForUser,
+  buildShardMap,
+  evenBucketDistribution,
+  shardForUser,
+  VIRTUAL_BUCKET_COUNT,
+} from './sharding.js';
 import { uuidv7, uuidv7Time } from './ids.js';
 import { isEligible, pacedBidCpm, relevanceScore } from './segments.js';
 
@@ -30,7 +36,8 @@ describe('revenue split', () => {
     expect(result.value.distributable.minor).toBe(8_500);
     expect(result.value.lines.map((line) => line.amount.minor)).toEqual([5_950, 2_550]);
     const total =
-      result.value.commission.minor + result.value.lines.reduce((sum, line) => sum + line.amount.minor, 0);
+      result.value.commission.minor +
+      result.value.lines.reduce((sum, line) => sum + line.amount.minor, 0);
     expect(total).toBe(10_000);
   });
 
@@ -48,7 +55,8 @@ describe('revenue split', () => {
       expect(result.ok).toBe(true);
       if (!result.ok) continue;
       const total =
-        result.value.commission.minor + result.value.lines.reduce((sum, line) => sum + line.amount.minor, 0);
+        result.value.commission.minor +
+        result.value.lines.reduce((sum, line) => sum + line.amount.minor, 0);
       expect(total).toBe(gross);
     }
   });
@@ -60,7 +68,11 @@ describe('revenue split', () => {
     expect(computeSplit({ ...base, commissionBps: 10.5 }).ok).toBe(false);
     expect(computeSplit({ gross: bdt(1_000), commissionBps: 1_000, parties: [] }).ok).toBe(false);
     expect(
-      computeSplit({ gross: bdt(1_000), commissionBps: 1_000, parties: [{ partyId: 'a', weightBps: 9_000 }] }).ok,
+      computeSplit({
+        gross: bdt(1_000),
+        commissionBps: 1_000,
+        parties: [{ partyId: 'a', weightBps: 9_000 }],
+      }).ok,
     ).toBe(false);
     expect(
       computeSplit({
@@ -137,7 +149,15 @@ describe('shard routing', () => {
 
   it('rejects duplicate or out-of-range bucket assignments', () => {
     const shard = { shardId: 's0' as never, region: 'r', primaryDsn: 'd', replicaDsns: [] };
-    expect(buildShardMap([{ bucket: 1 as never, shard }, { bucket: 1 as never, shard }], 1).ok).toBe(false);
+    expect(
+      buildShardMap(
+        [
+          { bucket: 1 as never, shard },
+          { bucket: 1 as never, shard },
+        ],
+        1,
+      ).ok,
+    ).toBe(false);
     expect(buildShardMap([{ bucket: VIRTUAL_BUCKET_COUNT as never, shard }], 1).ok).toBe(false);
     expect(evenBucketDistribution([]).ok).toBe(false);
   });
@@ -145,7 +165,10 @@ describe('shard routing', () => {
   it('reports unmapped buckets rather than guessing', () => {
     const map = buildShardMap([], 1);
     if (!map.ok) throw new Error('fixture invalid');
-    expect(shardForUser(USER_ID, map.value)).toMatchObject({ ok: false, error: { code: 'UNMAPPED_BUCKET' } });
+    expect(shardForUser(USER_ID, map.value)).toMatchObject({
+      ok: false,
+      error: { code: 'UNMAPPED_BUCKET' },
+    });
   });
 });
 
@@ -153,7 +176,9 @@ describe('uuidv7', () => {
   it('produces standards-shaped, time-ordered ids', () => {
     const earlier = uuidv7(1_700_000_000_000);
     const later = uuidv7(1_700_000_001_000);
-    expect(earlier).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(earlier).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
     expect(uuidv7Time(earlier)).toBe(1_700_000_000_000);
     expect(uuidv7Time(later)).toBe(1_700_000_001_000);
     expect(later > earlier).toBe(true);
@@ -191,7 +216,9 @@ describe('ad placement', () => {
     expect(isEligible(targeting, 'BLOG_INLINE', audience)).toBe(false);
     expect(isEligible({ ...targeting, countries: ['US'] }, 'FEED_INLINE', audience)).toBe(false);
     expect(isEligible({ ...targeting, languages: ['en'] }, 'FEED_INLINE', audience)).toBe(false);
-    expect(isEligible({ ...targeting, interests: ['sports'] }, 'FEED_INLINE', audience)).toBe(false);
+    expect(isEligible({ ...targeting, interests: ['sports'] }, 'FEED_INLINE', audience)).toBe(
+      false,
+    );
   });
 
   it('treats empty criteria as untargeted, not as a non-match', () => {
@@ -215,10 +242,22 @@ describe('ad placement', () => {
 
   it('stops bidding when the budget is exhausted', () => {
     expect(
-      pacedBidCpm({ placement: 'FEED_INLINE', audience, relevanceBps: 9_000, dailyBudgetRemainingMinor: 0, bidCpmMinor: 500 }),
+      pacedBidCpm({
+        placement: 'FEED_INLINE',
+        audience,
+        relevanceBps: 9_000,
+        dailyBudgetRemainingMinor: 0,
+        bidCpmMinor: 500,
+      }),
     ).toBe(0);
     expect(
-      pacedBidCpm({ placement: 'FEED_INLINE', audience, relevanceBps: 9_000, dailyBudgetRemainingMinor: 100, bidCpmMinor: 500 }),
+      pacedBidCpm({
+        placement: 'FEED_INLINE',
+        audience,
+        relevanceBps: 9_000,
+        dailyBudgetRemainingMinor: 100,
+        bidCpmMinor: 500,
+      }),
     ).toBe(450);
   });
 });

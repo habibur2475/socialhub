@@ -24,7 +24,8 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 
 export const isUuid = (value: string): boolean => UUID_PATTERN.test(value);
 
-export const parseUserId = (value: string): UserId | null => (isUuid(value) ? (value as UserId) : null);
+export const parseUserId = (value: string): UserId | null =>
+  isUuid(value) ? (value as UserId) : null;
 
 export const asUserId = (value: string): UserId => {
   if (!isUuid(value)) {

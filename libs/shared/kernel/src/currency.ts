@@ -22,7 +22,8 @@ export const RATE_SCALE = 1_000_000;
  * so conversion stays a pure function that the ledger can replay exactly.
  */
 export const convert = (amount: Money, rate: FxRate): Result<Money, FxError> => {
-  if (!isCurrencyCode(rate.quote)) return fail({ code: 'UNSUPPORTED_CURRENCY', currency: rate.quote });
+  if (!isCurrencyCode(rate.quote))
+    return fail({ code: 'UNSUPPORTED_CURRENCY', currency: rate.quote });
   if (amount.currency !== rate.base) {
     return fail({ code: 'RATE_UNAVAILABLE', base: rate.base, quote: amount.currency });
   }

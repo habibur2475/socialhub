@@ -52,14 +52,25 @@ const matchesAny = (criteria: readonly string[], value: string | null): boolean 
   criteria.length === 0 || (value !== null && criteria.includes(value));
 
 /** Returns true when the campaign is eligible for this audience and placement. */
-export const isEligible = (targeting: CampaignTargeting, placement: Placement, audience: AudienceProfile): boolean => {
+export const isEligible = (
+  targeting: CampaignTargeting,
+  placement: Placement,
+  audience: AudienceProfile,
+): boolean => {
   if (targeting.placements.length > 0 && !targeting.placements.includes(placement)) return false;
   if (!matchesAny(targeting.languages, audience.language)) return false;
-  if (targeting.countries.length > 0 && !matchesAny(targeting.countries, audience.countryCode)) return false;
-  if (targeting.ageBands.length > 0 && (audience.ageBand === null || !targeting.ageBands.includes(audience.ageBand))) {
+  if (targeting.countries.length > 0 && !matchesAny(targeting.countries, audience.countryCode))
+    return false;
+  if (
+    targeting.ageBands.length > 0 &&
+    (audience.ageBand === null || !targeting.ageBands.includes(audience.ageBand))
+  ) {
     return false;
   }
-  if (targeting.interests.length > 0 && !audience.interests.some((interest) => targeting.interests.includes(interest))) {
+  if (
+    targeting.interests.length > 0 &&
+    !audience.interests.some((interest) => targeting.interests.includes(interest))
+  ) {
     return false;
   }
   return true;
@@ -80,7 +91,10 @@ export const relevanceScore = (
   const overlap =
     targeting.interests.length === 0
       ? 5_000
-      : (Math.min(audience.interests.filter((interest) => targeting.interests.includes(interest)).length, targeting.interests.length) *
+      : (Math.min(
+          audience.interests.filter((interest) => targeting.interests.includes(interest)).length,
+          targeting.interests.length,
+        ) *
           7_000) /
         targeting.interests.length;
 

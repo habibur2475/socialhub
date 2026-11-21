@@ -28,7 +28,11 @@ export type ScopeNode = {
 
 export type ScopeError =
   | { readonly code: 'INVALID_PATH'; readonly path: string }
-  | { readonly code: 'LEVEL_ORDER_VIOLATION'; readonly parent: ScopeLevel; readonly child: ScopeLevel }
+  | {
+      readonly code: 'LEVEL_ORDER_VIOLATION';
+      readonly parent: ScopeLevel;
+      readonly child: ScopeLevel;
+    }
   | { readonly code: 'DUPLICATE_SEGMENT'; readonly segment: string };
 
 const LEVEL_INDEX: ReadonlyMap<ScopeLevel, number> = new Map(

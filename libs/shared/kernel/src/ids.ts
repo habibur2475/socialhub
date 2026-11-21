@@ -47,7 +47,11 @@ export const uuidv7 = (now: number = Date.now()): string => {
   }
 
   const value =
-    (BigInt(now) << 80n) | (0x7n << 76n) | (randA << 64n) | (0b10n << 62n) | (randB & 0x3fff_ffff_ffff_ffffn);
+    (BigInt(now) << 80n) |
+    (0x7n << 76n) |
+    (randA << 64n) |
+    (0b10n << 62n) |
+    (randB & 0x3fff_ffff_ffff_ffffn);
 
   return formatUuid(value);
 };
@@ -55,12 +59,20 @@ export const uuidv7 = (now: number = Date.now()): string => {
 /** Renders a 128-bit value as canonical 8-4-4-4-12 lowercase hex. */
 const formatUuid = (value: bigint): string => {
   const hex = toHex(value, 32);
-  return [group(hex, 0, 8), group(hex, 8, 4), group(hex, 12, 4), group(hex, 16, 4), group(hex, 20, 12)].join('-');
+  return [
+    group(hex, 0, 8),
+    group(hex, 8, 4),
+    group(hex, 12, 4),
+    group(hex, 16, 4),
+    group(hex, 20, 12),
+  ].join('-');
 };
 
 /** Extracts the embedded creation timestamp, or null when the value is not a v7 id. */
 export const uuidv7Time = (id: string): number | null => {
-  const match = /^([0-9a-f]{8})-([0-9a-f]{4})-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.exec(id);
+  const match = /^([0-9a-f]{8})-([0-9a-f]{4})-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.exec(
+    id,
+  );
   if (match === null) return null;
   const high = Number.parseInt(match[1] ?? '', 16);
   const low = Number.parseInt(match[2] ?? '', 16);

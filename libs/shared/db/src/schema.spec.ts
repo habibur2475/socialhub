@@ -29,7 +29,11 @@ afterAll(async () => {
 });
 
 /** Inserts a scope and returns its id. */
-const createScope = async (level: string, path: string, parentId: string | null): Promise<string> => {
+const createScope = async (
+  level: string,
+  path: string,
+  parentId: string | null,
+): Promise<string> => {
   const id = randomUUID();
   await client.query(
     'INSERT INTO scopes (id, level, path, name, parent_id) VALUES ($1, $2, $3, $4, $5)',
@@ -47,7 +51,13 @@ const createAccount = async (
   await client.query(
     `INSERT INTO accounts (id, account_type, state, email, password_hash)
      VALUES ($1, $2, $3, $4, $5)`,
-    [id, accountType, overrides.state ?? 'ACTIVE', email, overrides.passwordHash ?? 'argon2id$dummy'],
+    [
+      id,
+      accountType,
+      overrides.state ?? 'ACTIVE',
+      email,
+      overrides.passwordHash ?? 'argon2id$dummy',
+    ],
   );
   return id;
 };
@@ -158,7 +168,10 @@ describeWithDb('identity schema', () => {
       client.query(`UPDATE accounts SET account_type = 'STAFF' WHERE id = $1`, [first]),
     ).rejects.toThrow(/ROOT accounts cannot be demoted/);
 
-    await client.query('UPDATE accounts SET deleted_at = now() WHERE id IN ($1, $2)', [first, second]);
+    await client.query('UPDATE accounts SET deleted_at = now() WHERE id IN ($1, $2)', [
+      first,
+      second,
+    ]);
   });
 
   it('rotates the session epoch when credentials change', async () => {
@@ -167,7 +180,10 @@ describeWithDb('identity schema', () => {
       'SELECT session_epoch FROM accounts WHERE id = $1',
       [id],
     );
-    await client.query('UPDATE accounts SET password_hash = $2 WHERE id = $1', [id, 'argon2id$two']);
+    await client.query('UPDATE accounts SET password_hash = $2 WHERE id = $1', [
+      id,
+      'argon2id$two',
+    ]);
     const after = await client.query<{ session_epoch: number }>(
       'SELECT session_epoch FROM accounts WHERE id = $1',
       [id],
@@ -184,7 +200,9 @@ describeWithDb('identity schema', () => {
     await expect(
       client.query(`UPDATE audit_events SET action = 'user.tamper' WHERE id = $1`, [id]),
     ).rejects.toThrow(/append-only/);
-    await expect(client.query('DELETE FROM audit_events WHERE id = $1', [id])).rejects.toThrow(/append-only/);
+    await expect(client.query('DELETE FROM audit_events WHERE id = $1', [id])).rejects.toThrow(
+      /append-only/,
+    );
   });
 
   it('rejects malformed scope paths and duplicate employees', async () => {
@@ -200,9 +218,14 @@ describeWithDb('identity schema', () => {
     const staffA = await createStaffAccount('STAFF', company);
     const staffB = await createStaffAccount('STAFF', company);
     await expect(
-      client.query('UPDATE staff_profiles SET employee_no = $2 WHERE account_id = $1', [staffA, employeeNo]),
+      client.query('UPDATE staff_profiles SET employee_no = $2 WHERE account_id = $1', [
+        staffA,
+        employeeNo,
+      ]),
     ).resolves.toBeDefined();
-    await expect(insertStaffProfile(staffB, company, employeeNo)).rejects.toThrow(/staff_profiles_employee_no_key|duplicate key/);
+    await expect(insertStaffProfile(staffB, company, employeeNo)).rejects.toThrow(
+      /staff_profiles_employee_no_key|duplicate key/,
+    );
   });
 
   it('requires 32-byte digests for verification codes and refresh tokens', async () => {

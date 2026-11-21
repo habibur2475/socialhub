@@ -56,7 +56,9 @@ export type MigrationState = {
 const checksumOf = (sql: string): Buffer =>
   createHash('sha256').update(sql.replace(/\r\n/g, '\n'), 'utf8').digest();
 
-export const loadMigrations = async (directory: string = MIGRATIONS_DIR): Promise<readonly MigrationFile[]> => {
+export const loadMigrations = async (
+  directory: string = MIGRATIONS_DIR,
+): Promise<readonly MigrationFile[]> => {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = entries
     .filter((entry) => entry.isFile() && entry.name.endsWith('.sql'))

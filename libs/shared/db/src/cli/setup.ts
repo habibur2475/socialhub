@@ -33,9 +33,13 @@ const run = async (): Promise<void> => {
       process.stdout.write(`created role ${APP_ROLE}\n`);
     }
 
-    const databaseExists = await admin.query('SELECT 1 FROM pg_database WHERE datname = $1', [APP_DATABASE]);
+    const databaseExists = await admin.query('SELECT 1 FROM pg_database WHERE datname = $1', [
+      APP_DATABASE,
+    ]);
     if (databaseExists.rowCount === 0) {
-      await admin.query(`CREATE DATABASE ${quoteIdent(APP_DATABASE)} OWNER ${quoteIdent(APP_ROLE)}`);
+      await admin.query(
+        `CREATE DATABASE ${quoteIdent(APP_DATABASE)} OWNER ${quoteIdent(APP_ROLE)}`,
+      );
       process.stdout.write(`created database ${APP_DATABASE}\n`);
     }
   } finally {
@@ -62,7 +66,9 @@ const run = async (): Promise<void> => {
     await client.query(
       `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${quoteIdent(APP_ROLE)}`,
     );
-    await client.query(`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${quoteIdent(APP_ROLE)}`);
+    await client.query(
+      `GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${quoteIdent(APP_ROLE)}`,
+    );
     await client.query(
       `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${quoteIdent(APP_ROLE)}`,
     );

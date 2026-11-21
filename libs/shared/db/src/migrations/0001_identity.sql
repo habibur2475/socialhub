@@ -279,10 +279,13 @@ CREATE INDEX verification_codes_expiry_idx ON verification_codes (expires_at);
 -- rewritten row therefore breaks the chain, which is what makes the trail
 -- evidence rather than logs.
 -- ---------------------------------------------------------------------------
+-- No foreign keys on purpose: an audit row records what was true at the time and
+-- must outlive the rows it references. A cascading FK would rewrite history
+-- (ON DELETE SET NULL performs an UPDATE, which the immutability trigger rejects).
 CREATE TABLE audit_events (
   id            uuid PRIMARY KEY,
   occurred_at   timestamptz NOT NULL DEFAULT now(),
-  actor_id      uuid REFERENCES accounts (id) ON DELETE SET NULL,
+  actor_id      uuid,
   actor_type    account_type,
   action        text NOT NULL,
   resource_type text NOT NULL,
@@ -297,7 +300,8 @@ CREATE TABLE audit_events (
   previous_hash bytea,
   entry_hash    bytea NOT NULL,
 
-  CONSTRAINT audit_events_action_shape CHECK (action ~ '^[a-z_]+\.[a-z_]+$'),
+  -- Multi-segment, dotted, lowercase: `auth.login.success`, `finance.payout.approved`.
+  CONSTRAINT audit_events_action_shape CHECK (action ~ '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$'),
   CONSTRAINT audit_events_hash_len CHECK (octet_length(entry_hash) = 32)
 );
 

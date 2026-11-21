@@ -18,6 +18,8 @@ import type { ApiClient } from './api-client';
 
 export type FeedApi = {
   home(page?: { limit?: number; cursor?: string }): Promise<TimelineResponse>;
+  /** One post by id. Used by the post page a notification links to. */
+  get(id: string): Promise<PostResponse>;
   byAuthor(username: string, page?: { limit?: number; cursor?: string }): Promise<TimelineResponse>;
   create(input: CreatePostRequest): Promise<PostResponse>;
   edit(id: string, input: UpdatePostRequest): Promise<PostResponse>;
@@ -36,6 +38,8 @@ const pageQuery = (page?: { limit?: number; cursor?: string }): string => {
 
 export const createFeedApi = (client: ApiClient): FeedApi => ({
   home: (page) => client.request<TimelineResponse>(`/api/v1/feed${pageQuery(page)}`),
+
+  get: (id) => client.request<PostResponse>(`/api/v1/posts/${encodeURIComponent(id)}`),
 
   byAuthor: (username, page) =>
     client.request<TimelineResponse>(

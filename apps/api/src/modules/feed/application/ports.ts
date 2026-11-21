@@ -81,3 +81,41 @@ export type PostStore = {
 };
 
 export type FeedClock = () => Date;
+
+/**
+ * Side effects a feed write produces, expressed as *events* rather than as
+ * notifications.
+ *
+ * The feed does not know that a like becomes a notification row, nor that a mention
+ * has to be resolved through the profile store. It states what happened; the adapter
+ * decides who cares. That keeps the notification policy (blocks, entitlement,
+ * collapsing) in one module and keeps this service testable with a stub.
+ *
+ * Every method is fire-and-forget from the caller's point of view: a notification
+ * that cannot be written must not fail the post that caused it.
+ */
+export type FeedEvent =
+  | {
+      readonly type: 'POST_LIKED';
+      readonly actorId: string;
+      readonly postId: string;
+      readonly authorId: string;
+      readonly preview: string;
+    }
+  | {
+      readonly type: 'POST_REPLIED';
+      readonly actorId: string;
+      readonly postId: string;
+      readonly parentAuthorId: string;
+      readonly body: string;
+    }
+  | {
+      readonly type: 'POST_PUBLISHED';
+      readonly actorId: string;
+      readonly postId: string;
+      readonly body: string;
+    };
+
+export type FeedEvents = {
+  emit(event: FeedEvent): Promise<void>;
+};

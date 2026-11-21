@@ -23,7 +23,7 @@ import {
 import { DomainException } from '../../../common/filters/domain-exception.js';
 import { appError } from '@socialhub/kernel';
 import type { IdGenerator } from '../../auth/application/ports.js';
-import type { PostRecord, PostStore } from './ports.js';
+import type { FeedEvents, PostRecord, PostStore } from './ports.js';
 
 export type CreatePostInput = {
   readonly body: string;
@@ -56,6 +56,11 @@ export class FeedService {
   public constructor(
     private readonly posts: PostStore,
     private readonly ids: IdGenerator,
+    /**
+     * Notifications are emitted as events, after the write has committed. The feed
+     * states what happened; the notification module decides who is told.
+     */
+    private readonly events: FeedEvents,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -107,6 +112,29 @@ export class FeedService {
       throw new DomainException(appError('INTERNAL_ERROR', 'The post could not be created'));
     }
 
+    // Emitted after the write, never before: a notification for a post that failed
+    // to save is a dead link. A reply also notifies its parent's author; a fresh
+    // post only notifies mentions, which the adapter extracts from the body.
+    if (replyTo !== null && created.replyTo !== null) {
+      const parent = await this.posts.find(created.replyTo, authorId);
+      if (parent !== null) {
+        await this.events.emit({
+          type: 'POST_REPLIED',
+          actorId: authorId,
+          postId: created.id,
+          parentAuthorId: parent.authorId,
+          body: created.body,
+        });
+      }
+    } else {
+      await this.events.emit({
+        type: 'POST_PUBLISHED',
+        actorId: authorId,
+        postId: created.id,
+        body: created.body,
+      });
+    }
+
     return toView(created);
   }
 
@@ -152,6 +180,18 @@ export class FeedService {
 
     const post = await this.posts.find(postId, accountId);
     if (post === null) throw new DomainException(appError('NOT_FOUND', 'Post not found'));
+
+    // Only a *new* like is news. Un-liking must not notify the author, and without
+    // this guard the toggle would produce a notification on every other click.
+    if (liked) {
+      await this.events.emit({
+        type: 'POST_LIKED',
+        actorId: accountId,
+        postId,
+        authorId: post.authorId,
+        preview: post.body,
+      });
+    }
 
     return { liked: post.likedByMe, likeCount: post.likeCount };
   }

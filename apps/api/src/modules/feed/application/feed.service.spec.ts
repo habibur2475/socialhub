@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { PostAudience } from '@socialhub/kernel';
 
 import { FeedService } from './feed.service.js';
-import type { PostRecord, PostStore, TimelinePage } from './ports.js';
+import type { FeedEvents, PostRecord, PostStore, TimelinePage } from './ports.js';
 
 const AUTHOR = '0190f3c1-0000-7000-8000-00000000000a';
 const VIEWER = '0190f3c1-0000-7000-8000-00000000000b';
@@ -62,7 +62,9 @@ const createService = (
     next: (): string => `0190f3c1-0000-7000-8000-${String(++counter).padStart(12, '0')}`,
   };
 
-  return { service: new FeedService(store, ids), store };
+  const events: FeedEvents = { emit: vi.fn(async () => undefined) };
+
+  return { service: new FeedService(store, ids, events), store, events };
 };
 
 describe('creating a post', () => {

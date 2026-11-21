@@ -1,0 +1,36 @@
+{
+  "name": "socialhub",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SocialHub — enterprise-grade social platform monorepo",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "node tools/scripts/dev.mjs",
+    "dev:web": "pnpm --filter @socialhub/web dev",
+    "dev:api": "pnpm --filter @socialhub/api dev",
+    "build": "pnpm --filter @socialhub/api... build && pnpm --filter @socialhub/web build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,json,md,css}\"",
+    "db:setup": "pnpm --filter @socialhub/db setup",
+    "db:migrate": "pnpm --filter @socialhub/db migrate",
+    "db:status": "pnpm --filter @socialhub/db status"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "1.4.9",
+    "@types/node": "22.15.30",
+    "prettier": "3.6.2",
+    "typescript": "5.9.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "typescript": "5.9.2"
+    }
+  }
+}

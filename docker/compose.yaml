@@ -1,0 +1,117 @@
+# ---------------------------------------------------------------------------
+# Development stack — lightweight mode.
+#
+# Every heavy dependency from the production design is present here in a reduced
+# form, so the same code paths run locally and in staging:
+#   Postgres     single shard (the router still runs; the map has one entry)
+#   Redis        single node (sessions, permission cache, rate limits)
+#   OpenSearch   single node, small heap (Elasticsearch-compatible API)
+#   Redpanda     Kafka-compatible broker, no ZooKeeper
+#   MinIO        S3-compatible object storage
+#   Mailpit      SMTP sink with a web inbox for OTP flows
+#
+# Production replaces each of these with its managed equivalent; no application
+# code changes, only connection strings.
+# ---------------------------------------------------------------------------
+
+name: socialhub
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      # deterministic collation so ORDER BY matches between dev and CI
+      POSTGRES_INITDB_ARGS: '--locale=C --encoding=UTF8'
+    command:
+      - postgres
+      - -c
+      - max_connections=200
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - log_min_duration_statement=500
+      - -c
+      - jit=off
+    ports:
+      - '5433:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command:
+      - redis-server
+      - --appendonly
+      - 'no'
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - allkeys-lru
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  opensearch:
+    image: opensearchproject/registry:2.18.0
+    environment:
+      discovery.type: single-node
+      bootstrap.memory_lock: 'true'
+      OPENSEARCH_JAVA_OPTS: '-Xms256m -Xmx256m'
+      DISABLE_SECURITY_PLUGIN: 'true'
+      DISABLE_INSTALL_DEMO_CONFIG: 'true'
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+    ports:
+      - '9200:9200'
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+
+  redpanda:
+    image: redpandadata/redpanda:v24.2.7
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --memory=512M
+      - --overprovisioned
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=PLAINTEXT://0.0.0.0:29092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:29092
+    ports:
+      - '29092:29092'
+
+  minio:
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: socialhub
+      MINIO_ROOT_PASSWORD: socialhub_dev_secret
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - minio-data:/data
+
+  mailpit:
+    image: axllent/mailpit:v1.20
+    ports:
+      - '8025:8025' # web inbox
+      - '1025:1025' # SMTP
+
+volumes:
+  postgres-data:
+  opensearch-data:
+  minio-data:

@@ -12,3 +12,4 @@ export * from './revenue.js';
 export * from './ids.js';
 export * from './time.js';
 export * from './segments.js';
+export * from './relationships.js';

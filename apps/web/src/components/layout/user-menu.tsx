@@ -76,11 +76,11 @@ export const UserMenu = (): React.JSX.Element => {
           </div>
 
           <Link
-            href="/account"
+            href="/settings/profile"
             role="menuitem"
             className="flex h-11 items-center gap-sm rounded-sm px-sm text-small hover:bg-surface"
           >
-            <User aria-hidden className="size-4" /> Account
+            <User aria-hidden className="size-4" /> Edit profile
           </Link>
 
           <Button

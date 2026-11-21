@@ -12,12 +12,13 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 
 import { ConfigModule, ENV } from '../../config/config.module.js';
-import { DatabasePools } from '../../database/pool.js';
-import { RedisConnection } from '../../database/redis.js';
-import { CACHE, cacheProvider } from '../../database/cache.provider.js';
+import { AuditModule } from '../../common/audit/audit.module.js';
+import { CACHE } from '../../database/cache.provider.js';
+import { DatabaseModule } from '../../database/database.module.js';
+import { CacheModule } from '../../database/cache.module.js';
 import type { CachePort } from '../../common/cache/cache-port.js';
 import { JsonLogger } from '../../common/logging/logger.js';
-import { systemClock, uuidv7Identifiers } from '../../common/ids/system-clock.js';
+import { uuidv7Identifiers } from '../../common/ids/system-clock.js';
 import { Argon2PasswordHasher } from '../../common/crypto/password.js';
 import type { Env } from '../../config/env.js';
 import type { PermissionMask } from '@socialhub/kernel';
@@ -61,7 +62,6 @@ import {
 import { PostgresAccountRepository } from './infrastructure/account.repository.js';
 import { PostgresSessionRepository } from './infrastructure/session.repository.js';
 import { PostgresOneTimeCodeRepository } from './infrastructure/postgres-one-time-code.repository.js';
-import { PostgresAuditSink } from './infrastructure/postgres-audit-sink.js';
 import { JwtAccessTokenIssuer } from './infrastructure/jwt-token-issuer.js';
 import { LogMailer } from './infrastructure/log-mailer.js';
 import { LoginThrottleService } from './infrastructure/redis-login-throttle.js';
@@ -70,6 +70,9 @@ import { PermissionCache } from './infrastructure/permission-cache.js';
 @Module({
   imports: [
     ConfigModule,
+    DatabaseModule,
+    CacheModule,
+    AuditModule,
     JwtModule.register({
       // Secrets are passed per call in JwtAccessTokenIssuer so that access and
       // refresh keys never share a registration.
@@ -78,18 +81,16 @@ import { PermissionCache } from './infrastructure/permission-cache.js';
   ],
   controllers: [AuthController],
   providers: [
-    DatabasePools,
-    RedisConnection,
-    cacheProvider,
+    // Infrastructure providers are global (DatabaseModule, CacheModule); declaring
+    // them here would create a second pool and a second Redis socket.
     PostgresAccountRepository,
     PostgresSessionRepository,
     PostgresOneTimeCodeRepository,
     PermissionCache,
 
-    // `Clock` is a function and `IdGenerator` an object; binding the exact
-    // members (rather than the module objects) keeps both providers honest with
-    // their port types, so a wrong shape cannot slip through `useValue`.
-    { provide: CLOCK, useValue: (): Date => systemClock.now() },
+    // `IdGenerator` is an object; binding its exact member (rather than the module
+    // object) keeps the provider honest with the port type, so a wrong shape
+    // cannot slip through `useValue`. `CLOCK` comes from the imported modules.
     { provide: IDS, useValue: uuidv7Identifiers },
     {
       provide: PASSWORD_SERVICE,
@@ -126,16 +127,6 @@ import { PermissionCache } from './infrastructure/permission-cache.js';
         }
       },
       inject: [JsonLogger, ENV],
-    },
-    {
-      provide: AUDIT_SINK,
-      useFactory: (
-        pools: DatabasePools,
-        cache: CachePort,
-        logger: JsonLogger,
-        clock: () => Date,
-      ): AuditSink => new PostgresAuditSink(pools, cache, logger, uuidv7Identifiers.next, clock),
-      inject: [DatabasePools, CACHE, JsonLogger, CLOCK],
     },
     {
       provide: PERMISSIONS_FOR,
@@ -204,7 +195,6 @@ import { PermissionCache } from './infrastructure/permission-cache.js';
     ACCESS_TOKEN_ISSUER,
     ACCOUNT_STORE,
     SESSION_STORE,
-    CLOCK,
     IDS,
   ],
 })

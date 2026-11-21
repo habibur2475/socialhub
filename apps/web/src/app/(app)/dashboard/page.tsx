@@ -1,5 +1,9 @@
 'use client';
 
+import Link from 'next/link';
+import { UserRound } from 'lucide-react';
+
+import { buttonClass } from '@/components/ui/button-styles';
 import { useSession } from '@/lib/session';
 import { ThemeToggle } from '@/components/layout/theme-toggle';
 import { NAV_ITEMS } from '@/components/layout/navigation';
@@ -27,6 +31,20 @@ export default function DashboardPage(): React.JSX.Element {
       </header>
 
       <div className="grid gap-sm lg:grid-cols-3">
+        <section className="flex flex-col gap-xs rounded-lg border border-border bg-surface p-md">
+          <h2 className="text-subheading">Your profile</h2>
+          <p className="text-small text-muted">
+            Choose what other people see, and who may follow you.
+          </p>
+          <Link
+            href="/settings/profile"
+            className={buttonClass('secondary', 'sm', 'mt-xs self-start')}
+          >
+            <UserRound aria-hidden className="size-4" />
+            Edit profile
+          </Link>
+        </section>
+
         <section className="flex flex-col gap-xs rounded-lg border border-border bg-surface p-md lg:col-span-2">
           <h2 className="text-subheading">Session</h2>
           <dl className="grid grid-cols-1 gap-xs text-small sm:grid-cols-2">

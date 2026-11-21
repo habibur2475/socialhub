@@ -124,22 +124,11 @@ export type Mailer = {
   send(message: MailMessage): Promise<void>;
 };
 
-export type AuditEvent = {
-  readonly action: string;
-  readonly actorId: string | null;
-  readonly actorType: AccountType | null;
-  readonly resourceType: string;
-  readonly resourceId: string | null;
-  readonly outcome: 'SUCCESS' | 'DENIED' | 'ERROR';
-  readonly ipHash: string | null;
-  readonly userAgent: string | null;
-  readonly traceId: string | null;
-  readonly payload: Readonly<Record<string, unknown>>;
-};
-
-export type AuditSink = {
-  record(event: AuditEvent): Promise<void>;
-};
+/**
+ * Re-exported from `common/audit` so existing call sites keep their import and
+ * the definition stays in one place.
+ */
+export type { AuditEvent, AuditSink } from '../../../common/audit/audit.port.js';
 
 export type PasswordService = {
   hash(password: string): Promise<string>;

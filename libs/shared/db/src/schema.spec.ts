@@ -95,6 +95,162 @@ const createStaffAccount = async (
   }
 };
 
+/** Creates a USER account together with its profile, which the graph tables require. */
+const createUserWithProfile = async (overrides: { visibility?: string } = {}): Promise<string> => {
+  const id = await createAccount('USER');
+  await client.query(
+    `INSERT INTO user_profiles (account_id, username, display_name, visibility)
+     VALUES ($1, $2, $3, $4)`,
+    [id, `u_${id.replaceAll('-', '').slice(0, 20)}`, 'Test User', overrides.visibility ?? 'PUBLIC'],
+  );
+  return id;
+};
+
+const follow = async (followerId: string, followeeId: string, accepted = true): Promise<void> => {
+  await client.query(
+    'INSERT INTO follows (follower_id, followee_id, accepted_at) VALUES ($1, $2, $3)',
+    [followerId, followeeId, accepted ? new Date() : null],
+  );
+};
+
+const countersOf = async (accountId: string): Promise<{ followers: number; following: number }> => {
+  const result = await client.query<{ follower_count: number; following_count: number }>(
+    'SELECT follower_count, following_count FROM user_profiles WHERE account_id = $1',
+    [accountId],
+  );
+  return {
+    followers: result.rows[0]?.follower_count ?? -1,
+    following: result.rows[0]?.following_count ?? -1,
+  };
+};
+
+describeWithDb('social graph schema', () => {
+  it('defaults a new profile to PUBLIC visibility', async () => {
+    const id = await createUserWithProfile();
+    const result = await client.query<{ visibility: string }>(
+      'SELECT visibility FROM user_profiles WHERE account_id = $1',
+      [id],
+    );
+    expect(result.rows[0]?.visibility).toBe('PUBLIC');
+  });
+
+  it('rejects an unknown profile visibility', async () => {
+    const id = await createAccount('USER');
+    await expect(
+      client.query(
+        `INSERT INTO user_profiles (account_id, username, display_name, visibility)
+         VALUES ($1, $2, 'Test', 'SECRET')`,
+        [id, `v_${id.replaceAll('-', '').slice(0, 20)}`],
+      ),
+    ).rejects.toThrow(/user_profiles_visibility_allowed/);
+  });
+
+  it('refuses a self-follow', async () => {
+    const a = await createUserWithProfile();
+    await expect(follow(a, a)).rejects.toThrow(/follows_no_self_edge/);
+  });
+
+  it('treats a duplicate follow as a no-op rather than an error', async () => {
+    const a = await createUserWithProfile();
+    const b = await createUserWithProfile();
+    await follow(a, b);
+    // The composite primary key makes idempotency a property of the schema, so
+    // the API does not need a read-then-write race to implement it.
+    await expect(
+      client.query(
+        `INSERT INTO follows (follower_id, followee_id, accepted_at) VALUES ($1, $2, now())
+         ON CONFLICT DO NOTHING`,
+        [a, b],
+      ),
+    ).resolves.toBeDefined();
+    expect((await countersOf(b)).followers).toBe(1);
+  });
+
+  it('maintains follower and following counters from the edge table', async () => {
+    const a = await createUserWithProfile();
+    const b = await createUserWithProfile();
+
+    await follow(a, b);
+    expect(await countersOf(b)).toEqual({ followers: 1, following: 0 });
+    expect(await countersOf(a)).toEqual({ followers: 0, following: 1 });
+
+    await client.query('DELETE FROM follows WHERE follower_id = $1 AND followee_id = $2', [a, b]);
+    expect(await countersOf(b)).toEqual({ followers: 0, following: 0 });
+  });
+
+  it('does not count a pending follow request as a follower', async () => {
+    const a = await createUserWithProfile();
+    const b = await createUserWithProfile({ visibility: 'PRIVATE' });
+
+    await follow(a, b, false);
+    expect((await countersOf(b)).followers).toBe(0);
+
+    // Accepting the request is what turns it into an edge.
+    await client.query(
+      'UPDATE follows SET accepted_at = now() WHERE follower_id = $1 AND followee_id = $2',
+      [a, b],
+    );
+    expect((await countersOf(b)).followers).toBe(1);
+  });
+
+  /**
+   * The block guarantee, at the database level: a block destroys existing follows
+   * in both directions. A block that leaves a follow behind keeps delivering the
+   * blocked party's content, which is the opposite of what the user asked for.
+   */
+  it('severs follows in both directions when a block is created', async () => {
+    const a = await createUserWithProfile();
+    const b = await createUserWithProfile();
+
+    await follow(a, b);
+    await follow(b, a);
+    expect((await countersOf(b)).followers).toBe(1);
+
+    await client.query('INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)', [a, b]);
+
+    const remaining = await client.query<{ n: string }>(
+      `SELECT count(*)::text AS n FROM follows
+       WHERE (follower_id = $1 AND followee_id = $2) OR (follower_id = $2 AND followee_id = $1)`,
+      [a, b],
+    );
+    expect(remaining.rows[0]?.n).toBe('0');
+    // And the counters were corrected by the same trigger chain.
+    expect((await countersOf(b)).followers).toBe(0);
+    expect((await countersOf(a)).followers).toBe(0);
+  });
+
+  it('refuses a follow that would cross an existing block', async () => {
+    const a = await createUserWithProfile();
+    const b = await createUserWithProfile();
+
+    await client.query('INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)', [a, b]);
+
+    await expect(follow(a, b)).rejects.toThrow(/cannot follow across a block/);
+    // Blocking is symmetric in effect: the blocked party cannot follow either.
+    await expect(follow(b, a)).rejects.toThrow(/cannot follow across a block/);
+  });
+
+  it('refuses a self-block', async () => {
+    const a = await createUserWithProfile();
+    await expect(
+      client.query('INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $1)', [a]),
+    ).rejects.toThrow(/blocks_no_self_block/);
+  });
+
+  it('allows unblocking, which does not restore the severed follows', async () => {
+    const a = await createUserWithProfile();
+    const b = await createUserWithProfile();
+    await follow(a, b);
+    await client.query('INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)', [a, b]);
+    await client.query('DELETE FROM blocks WHERE blocker_id = $1 AND blocked_id = $2', [a, b]);
+
+    // Re-following after an unblock is the user's decision, not an automatic
+    // consequence of removing the block.
+    expect((await countersOf(b)).followers).toBe(0);
+    await expect(follow(a, b)).resolves.toBeUndefined();
+  });
+});
+
 describeWithDb('identity schema', () => {
   it('rejects unknown account types and states', async () => {
     await expect(

@@ -11,6 +11,9 @@ export default defineConfig({
       '@socialhub/kernel': fileURLToPath(
         new URL('../../libs/shared/kernel/src/index.ts', import.meta.url),
       ),
+      '@socialhub/contracts': fileURLToPath(
+        new URL('../../libs/shared/contracts/src/index.ts', import.meta.url),
+      ),
     },
   },
   // NestJS dependency injection needs design:paramtypes metadata. Vite's esbuild

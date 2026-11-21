@@ -18,6 +18,7 @@
     "@nestjs/platform-express": "11.1.6",
     "@nestjs/throttler": "6.4.0",
     "@node-rs/argon2": "2.0.2",
+    "@socialhub/contracts": "workspace:*",
     "@socialhub/db": "workspace:*",
     "@socialhub/kernel": "workspace:*",
     "class-transformer": "0.5.1",

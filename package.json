@@ -9,7 +9,7 @@
     "pnpm": ">=9.0.0"
   },
   "scripts": {
-    "dev": "node tools/scripts/dev.mjs",
+    "dev": "node tools/dev.mjs",
     "dev:web": "pnpm --filter @socialhub/web dev",
     "dev:api": "pnpm --filter @socialhub/api dev",
     "build": "pnpm --filter @socialhub/api... build && pnpm --filter @socialhub/web build",
@@ -20,7 +20,8 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,json,md,css}\"",
     "db:setup": "pnpm --filter @socialhub/db setup",
     "db:migrate": "pnpm --filter @socialhub/db migrate",
-    "db:status": "pnpm --filter @socialhub/db status"
+    "db:status": "pnpm --filter @socialhub/db status",
+    "check:budget": "node tools/check-bundle-budget.mjs"
   },
   "devDependencies": {
     "@types/cookie-parser": "1.4.9",

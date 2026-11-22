@@ -9,6 +9,8 @@
  * a partial failure finishes the job rather than duplicating the demo.
  */
 
+import { writeFile } from 'node:fs/promises';
+
 import { Client } from 'pg';
 
 const BASE = process.env['API_BASE'] ?? 'http://localhost:4000';
@@ -150,6 +152,42 @@ for (const follower of [grace, linus]) {
     token: follower.token,
     body: { accountId: ada.id },
   });
+}
+
+// A direct conversation, so the messaging screen has something to show.
+//
+// The kernel only lets you *start* a conversation if you follow the person (or they follow
+// you), which is deliberate: an inbox that anyone can write into is a spam channel. So the
+// seed follows first — as a person would — rather than bypassing the rule.
+await call('/api/v1/social/follow', {
+  method: 'POST',
+  token: ada.token,
+  body: { accountId: grace.id },
+});
+
+const conversations = await call('/api/v1/messages/conversations', { token: ada.token });
+if ((conversations.body?.items ?? []).length === 0) {
+  const thread = await call('/api/v1/messages/direct', {
+    method: 'POST',
+    token: ada.token,
+    body: { accountId: grace.id },
+  });
+  if (thread.status !== 201 && thread.status !== 200) {
+    throw new Error(`demo conversation: ${thread.status}`);
+  }
+
+  const threadId = thread.body.id;
+  for (const [actor, body] of [
+    [ada, 'Loved your note on the moth in the relay.'],
+    [grace, 'It is still in the archive. Say the word and I will bring the log entry.'],
+    [ada, 'Please do. Bring the kettle too.'],
+  ]) {
+    await call(`/api/v1/messages/conversations/${threadId}/messages`, {
+      method: 'POST',
+      token: actor.token,
+      body: { body },
+    });
+  }
 }
 
 // A forum thread with an accepted answer.
@@ -306,5 +344,36 @@ if ((graceOrders.body?.items ?? []).length === 0) {
   if (order.status !== 201) throw new Error(`demo order: ${order.status}`);
 }
 
+/**
+ * Writes the ids the tour needs.
+ *
+ * The tour must not guess a UUID: a hardcoded one is a second source of truth that goes
+ * wrong the first time the seed is run against a fresh database. Ids that came out of the
+ * API during the seed are recorded here, and the tour reads them.
+ */
+const sampleThread = (await client.query('SELECT id FROM forum_threads LIMIT 1')).rows[0];
+const sampleQuiz = (await client.query('SELECT id FROM quiz_sets LIMIT 1')).rows[0];
+const sampleNote = (await client.query('SELECT id FROM notes LIMIT 1')).rows[0];
+const samplePost = (await client.query('SELECT id FROM posts LIMIT 1')).rows[0];
+const sampleOrder = (await client.query('SELECT id FROM market_orders ORDER BY created_at LIMIT 1'))
+  .rows[0];
+
+const ids = {
+  thread: sampleThread?.id ?? null,
+  quiz: sampleQuiz?.id ?? null,
+  note: sampleNote?.id ?? null,
+  post: samplePost?.id ?? null,
+  order: sampleOrder?.id ?? null,
+  conversation: null,
+};
+
+const conversationRows = await client.query('SELECT id FROM message_threads LIMIT 1');
+ids.conversation = conversationRows.rows[0]?.id ?? null;
+
 await client.end();
 console.log('seed: demo accounts and content are in place');
+console.log(`seed: ids ${JSON.stringify(ids)}`);
+
+// Written next to the screenshots so the tour can address a real thread, quiz, note and
+// order without a second query and without a hardcoded UUID.
+await writeFile('docs/screenshots/demo-ids.json', `${JSON.stringify(ids, null, 2)}\n`);

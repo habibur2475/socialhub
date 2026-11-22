@@ -22,6 +22,7 @@
     "db:migrate": "pnpm --filter @socialhub/db migrate",
     "db:status": "pnpm --filter @socialhub/db status",
     "check:budget": "node tools/check-bundle-budget.mjs",
+    "check:classes": "node tools/class-check.mjs",
     "seed:demo": "node tools/seed-demo.mjs",
     "shots": "node tools/screenshot-tour.mjs"
   },

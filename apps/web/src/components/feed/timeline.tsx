@@ -140,7 +140,7 @@ export const Timeline = ({
       ) : null}
 
       {posts.length === 0 ? (
-        <p className="py-lg text-center text-small text-text-muted">{emptyMessage}</p>
+        <p className="py-lg text-center text-small text-muted">{emptyMessage}</p>
       ) : (
         posts.map((post) => (
           <PostCard

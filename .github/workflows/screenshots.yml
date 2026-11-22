@@ -19,8 +19,11 @@ on:
     branches: ['arena/**']
     paths:
       - 'apps/web/src/**'
+      - 'apps/web/tailwind.config.ts'
       - 'libs/shared/**'
       - 'tools/screenshot-tour.mjs'
+      - 'tools/seed-demo.mjs'
+      - 'tools/class-check.mjs'
       - '.github/workflows/screenshots.yml'
 
 permissions:
@@ -38,7 +41,7 @@ jobs:
   capture:
     name: Capture every screen
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
 
     services:
       postgres:
@@ -176,6 +179,12 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/socialhub
         run: node tools/seed-demo.mjs
 
+      # A class that Tailwind never emits has no error and no warning: the element just has
+      # the wrong size. Checking the compiled CSS for utilities the app uses but the build
+      # never defined is the only way this fails loudly.
+      - name: Check that every utility class is defined
+        run: pnpm check:classes
+
       # Deliberately not fatal: whatever rendered should still reach the branch, and the
       # tour's own report is the only way to see *which* screen misbehaved on a runner whose
       # logs are not always downloadable.
@@ -201,6 +210,10 @@ jobs:
             echo "Screenshots unchanged"
           else
             git commit -m 'docs(screenshots): refresh the tour from CI'
+            # Another push may have landed while the tour ran (this repo has other bots).
+            # Rebasing the generated images on top is always the right resolution: they are
+            # output, not a merge of intent.
+            git pull --rebase --autostash
             git push
           fi
 

@@ -88,6 +88,13 @@ jobs:
         # Fails the build if any route's compressed initial JS exceeds 250 kB.
         run: pnpm check:budget
 
+      # Tailwind emits no warning for a class it does not recognise, and the generated CSS
+      # is the only place the difference shows up. This catches a utility that is written
+      # in JSX but never defined — the failure mode that once made every icon on the site
+      # render at the wrong size with the build still green.
+      - name: Check that every utility class is defined
+        run: pnpm check:classes
+
       - name: Unit and integration tests
         env:
           TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/socialhub

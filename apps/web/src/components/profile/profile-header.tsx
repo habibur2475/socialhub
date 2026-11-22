@@ -36,21 +36,23 @@ export const ProfileHeader = ({ profile, action }: ProfileHeaderProps): React.JS
           // Decorative: the display name sits beside it, so announcing the avatar
           // would repeat the same information to a screen reader.
           aria-hidden
-          className="grid h-[72px] w-[72px] shrink-0 place-items-center rounded-full bg-primary text-h2 font-semibold text-primary-contrast"
+          className="grid h-[72px] w-[72px] shrink-0 place-items-center rounded-full bg-primary text-subheading font-semibold text-primary-contrast"
         >
           {initialOf(profile.displayName)}
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-xs">
-          <h1 className="truncate text-h2 font-semibold text-text">{profile.displayName}</h1>
-          <p className="truncate text-small text-text-muted">@{profile.username}</p>
+          <h1 className="truncate text-subheading font-semibold text-text">
+            {profile.displayName}
+          </h1>
+          <p className="truncate text-small text-muted">@{profile.username}</p>
         </div>
 
         {action === undefined ? null : <div className="shrink-0">{action}</div>}
       </div>
 
       {restricted ? (
-        <p className="flex items-center gap-xs text-small text-text-muted">
+        <p className="flex items-center gap-xs text-small text-muted">
           <Lock size={14} aria-hidden />
           This profile is restricted. Follow to see more.
         </p>
@@ -74,10 +76,10 @@ const Stat = ({
   readonly value: number | null;
 }): React.JSX.Element => (
   <div className="flex items-baseline gap-xs">
-    <dt className="text-text-muted">{label}</dt>
+    <dt className="text-muted">{label}</dt>
     {/* A hidden count renders as a dash rather than disappearing: a missing
         number reads as a layout bug, a dash reads as "not shared". */}
-    <dd className={cn('font-semibold text-text', value === null && 'text-text-muted')}>
+    <dd className={cn('font-semibold text-text', value === null && 'text-muted')}>
       {value === null ? '—' : value.toLocaleString()}
     </dd>
   </div>

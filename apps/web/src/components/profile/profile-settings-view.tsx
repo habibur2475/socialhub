@@ -61,8 +61,8 @@ export const ProfileSettingsView = (): React.JSX.Element => {
   return (
     <div className="flex flex-col gap-lg">
       <div className="flex flex-col gap-xs">
-        <h1 className="text-h2 font-semibold text-text">Edit profile</h1>
-        <p className="text-small text-text-muted">This is how other people see you on SocialHub.</p>
+        <h1 className="text-subheading font-semibold text-text">Edit profile</h1>
+        <p className="text-small text-muted">This is how other people see you on SocialHub.</p>
       </div>
       <ProfileForm profile={profile} onSaved={setProfile} />
     </div>

@@ -141,7 +141,7 @@ export const ListingGrid = (): React.JSX.Element => {
       {status === 'loading' ? (
         <div className="grid gap-sm sm:grid-cols-2" aria-busy>
           {[0, 1, 2, 3].map((key) => (
-            <div key={key} className="flex flex-col gap-xs rounded-xl border border-border p-md">
+            <div key={key} className="flex flex-col gap-xs rounded-lg border border-border p-md">
               <div className="skeleton h-5 w-40" />
               <div className="skeleton h-4 w-full" />
               <div className="skeleton h-4 w-24" />
@@ -186,7 +186,7 @@ export const ListingGrid = (): React.JSX.Element => {
           <li key={listing.id}>
             <Link
               href={`/market/${listing.slug}`}
-              className="flex h-full flex-col gap-xs rounded-xl border border-border p-md transition-colors hover:border-primary/50 hover:bg-primary/5"
+              className="flex h-full flex-col gap-xs rounded-lg border border-border p-md transition-colors hover:border-primary/50 hover:bg-primary/5"
             >
               <span className="flex items-start gap-xs">
                 <span className="text-body font-medium">{listing.title}</span>
@@ -202,7 +202,7 @@ export const ListingGrid = (): React.JSX.Element => {
                 )}
               </span>
 
-              <span className="text-h3 font-semibold">
+              <span className="text-body font-semibold">
                 {priceLabel(listing.priceMinor, listing.currency)}
               </span>
 

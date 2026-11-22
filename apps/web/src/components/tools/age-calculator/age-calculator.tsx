@@ -69,7 +69,7 @@ export const AgeCalculatorTool = (): React.JSX.Element => {
           <>
             <div className="flex flex-col gap-xs rounded-lg border border-border p-md">
               <span className="text-caption text-muted">Age</span>
-              <p className="text-h1 font-semibold tabular-nums">
+              <p className="text-heading font-semibold tabular-nums">
                 {state.age.years}
                 <span className="ml-xs text-body font-normal text-muted">
                   {state.age.years === 1 ? 'year' : 'years'}
@@ -147,7 +147,9 @@ export const AgeCalculatorTool = (): React.JSX.Element => {
             ].map((item) => (
               <div key={item.label} className="rounded-lg border border-border p-sm">
                 <p className="text-caption text-muted">{item.label}</p>
-                <p className="text-h3 font-semibold tabular-nums">{item.value.toLocaleString()}</p>
+                <p className="text-body font-semibold tabular-nums">
+                  {item.value.toLocaleString()}
+                </p>
               </div>
             ))}
 

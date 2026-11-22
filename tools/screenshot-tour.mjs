@@ -18,6 +18,7 @@
  */
 
 import { mkdir } from 'node:fs/promises';
+import { readFileSync, readdirSync, rmSync } from 'node:fs';
 import { chromium } from 'playwright';
 
 const WEB = process.env['WEB_URL'] ?? 'http://localhost:3000';
@@ -29,6 +30,22 @@ const DESKTOP = { width: 1440, height: 1000 };
 const MOBILE = { width: 390, height: 844 };
 
 await mkdir(OUT, { recursive: true });
+
+// Start from nothing. Numbering shifts whenever a screen is added, so leaving the old files
+// behind would commit a mix of runs — indistinguishable in a diff from a screen that was
+// renamed, and quietly stale.
+for (const file of readdirSync(OUT)) {
+  if (file.endsWith('.png')) rmSync(`${OUT}/${file}`);
+}
+
+/**
+ * Ids written by `tools/seed-demo.mjs`.
+ *
+ * Screens like a single thread or a single order need a real row. Addressing them by UUID
+ * from here would make the tour depend on a particular database; reading the ids the seed
+ * just produced keeps the tour honest about the data it is photographing.
+ */
+const demo = JSON.parse(readFileSync(`${OUT}/demo-ids.json`, 'utf8'));
 
 // `--host-resolver-rules` points the tour's hostname at the machine: the certificate is
 // issued for `socialhub.localhost`, and Chromium does not resolve `*.localhost` on its own in
@@ -162,6 +179,34 @@ await capture(page, 'market-cart', '/market/cart', 'main');
 await capture(page, 'orders', '/market/orders', 'text=Hand-thrown clay kettle');
 await capture(page, 'settings', '/settings/profile', 'text=Display name');
 
+// ------------------------------------------------- the screens behind a single row
+//
+// Each of these needs an id, which is why they were missing from the first tour even though
+// they are ordinary pages a person reaches by clicking a list item.
+await capture(page, 'post', `/posts/${demo.post}`, 'main');
+await capture(page, 'forum-thread', `/forum/threads/${demo.thread}`, 'main');
+await capture(page, 'forum-new', '/forum/new', 'main');
+await capture(page, 'quiz', `/quiz/${demo.quiz}`, 'main');
+await capture(page, 'quiz-new', '/quiz/new', 'main');
+await capture(page, 'conversation', `/messages/${demo.conversation}`, 'main');
+await capture(page, 'message-new', '/messages/new', 'main');
+await capture(page, 'blog-new', '/blog/new', 'main');
+await capture(page, 'order', `/market/orders/${demo.order}`, 'main');
+await capture(page, 'listing-edit', '/market/hand-thrown-clay-kettle/edit', 'main');
+await capture(page, 'calculator', '/tools/calculator', 'main');
+await capture(page, 'pdf-editor', '/tools/pdf-editor', 'main');
+await capture(page, 'period', '/tools/period', 'main');
+await capture(page, 'qr-code', '/tools/qr-code', 'main');
+await capture(page, 'note', '/tools/notes', 'text=Shopping');
+
+// The recovery screens live in the signed-out area. They are photographed with a fresh,
+// cookie-free context so the app does not bounce an authenticated visitor back to the feed,
+// which is what these pages do by design.
+await capture(anon, 'forgot-password', '/forgot-password', 'text=Reset');
+await capture(anon, 'reset-password', '/reset-password?email=ada@socialhub.test', 'text=password');
+await capture(anon, 'verify-email', '/verify-email', 'main');
+await capture(anon, 'offline', '/offline', 'main');
+
 // -------------------------------------------------------------------- mobile
 const mobilePage = await phone.newPage();
 await open(mobilePage, `${WEB}/login`);
@@ -175,7 +220,10 @@ if (new URL(mobilePage.url()).pathname.startsWith('/login')) {
   failures.push('session (mobile): a reload after signing in fell back to the login form');
 }
 
-await mobilePage.locator('nav[aria-label="Primary"]').first().waitFor({ timeout: 20_000 });
+// `nav[aria-label="Primary"]` matches three elements — the desktop sidebar, the drawer and
+// the bottom bar — and `.first()` picks the *hidden* sidebar at phone width. The bottom bar
+// is the one that proves the mobile shell is up.
+await mobilePage.locator('nav[aria-label="Primary"]:visible').first().waitFor({ timeout: 20_000 });
 
 await capture(mobilePage, 'mobile-feed', '/', 'main');
 await capture(mobilePage, 'mobile-market', '/market', 'main');

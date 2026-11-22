@@ -34,10 +34,10 @@ export default function ToolsPage(): React.JSX.Element {
           <li key={tool.key}>
             <Link
               href={tool.href}
-              className="flex h-full flex-col gap-xs rounded-xl border border-border p-md transition-colors hover:border-primary/50 hover:bg-primary/5"
+              className="flex h-full flex-col gap-xs rounded-lg border border-border p-md transition-colors hover:border-primary/50 hover:bg-primary/5"
             >
               <span className="flex items-center gap-sm">
-                <span className="flex size-9 items-center justify-center rounded-lg bg-raised text-foreground">
+                <span className="flex size-9 items-center justify-center rounded-lg bg-raised text-text">
                   <tool.icon aria-hidden className="size-4" />
                 </span>
                 <span className="flex flex-col">

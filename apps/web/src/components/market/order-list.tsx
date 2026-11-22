@@ -183,7 +183,7 @@ export const OrderList = (): React.JSX.Element => {
                 <span aria-hidden>·</span>
                 <span suppressHydrationWarning>{relativeTime(order.createdAt, now)}</span>
                 <span aria-hidden>·</span>
-                <span className="font-medium text-foreground">
+                <span className="font-medium text-text">
                   {priceLabel(order.totalMinor, order.currency)}
                 </span>
               </span>

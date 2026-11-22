@@ -135,7 +135,7 @@ export const ProfileForm = ({ profile, onSaved }: ProfileFormProps): React.JSX.E
           rows={4}
           className={cn(
             'w-full resize-y rounded-md border border-border bg-surface px-sm py-xs',
-            'text-body text-text placeholder:text-text-muted',
+            'text-body text-text placeholder:text-muted',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
           )}
         />
@@ -150,7 +150,7 @@ export const ProfileForm = ({ profile, onSaved }: ProfileFormProps): React.JSX.E
               'flex cursor-pointer items-start gap-sm rounded-md border p-sm',
               visibility === option.value
                 ? 'border-primary bg-primary/5'
-                : 'border-border hover:bg-surface-raised',
+                : 'border-border hover:bg-raised',
             )}
           >
             <input
@@ -163,7 +163,7 @@ export const ProfileForm = ({ profile, onSaved }: ProfileFormProps): React.JSX.E
             />
             <span className="flex flex-col gap-[2px]">
               <span className="text-small font-medium text-text">{option.label}</span>
-              <span className="text-caption text-text-muted">{option.description}</span>
+              <span className="text-caption text-muted">{option.description}</span>
             </span>
           </label>
         ))}

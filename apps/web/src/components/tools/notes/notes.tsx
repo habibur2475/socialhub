@@ -264,8 +264,8 @@ export const NotesTool = (): React.JSX.Element => {
             <div className="flex min-h-[280px] flex-col items-center justify-center gap-sm rounded-lg border border-dashed border-border p-lg text-center">
               <NotebookPen aria-hidden className="size-6 text-muted" />
               <p className="text-small text-muted">
-                Choose a note, or press <span className="font-medium text-foreground">+</span> to
-                write one.
+                Choose a note, or press <span className="font-medium text-text">+</span> to write
+                one.
               </p>
             </div>
           ) : (

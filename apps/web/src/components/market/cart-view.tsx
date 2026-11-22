@@ -142,7 +142,7 @@ export const CartView = (): React.JSX.Element => {
   if (placed.length > 0) {
     return (
       <div className="flex flex-col gap-md">
-        <h2 className="text-h2">Order placed</h2>
+        <h2 className="text-subheading">Order placed</h2>
         <p className="text-body text-muted">
           {placed.length === 1
             ? 'Your order is held for 30 minutes while payment completes.'

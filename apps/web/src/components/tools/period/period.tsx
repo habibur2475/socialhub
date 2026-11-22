@@ -129,7 +129,7 @@ export const PeriodTool = (): React.JSX.Element => {
             <>
               <div className="flex flex-col gap-xs rounded-lg border border-border p-md">
                 <span className="text-caption text-muted">পরের পিরিয়ড</span>
-                <p className="text-h3 font-semibold tabular-nums">{prediction.nextStart}</p>
+                <p className="text-body font-semibold tabular-nums">{prediction.nextStart}</p>
                 <p className="text-small text-muted">
                   সবচেয়ে সম্ভাব্য {prediction.windowStart} – {prediction.windowEnd} ·{' '}
                   {prediction.daysUntilNext === 0 ? 'আজ' : `${prediction.daysUntilNext} দিন পর`}
@@ -260,7 +260,7 @@ export const PeriodTool = (): React.JSX.Element => {
                   'h-9 rounded-full px-sm text-small transition-colors',
                   flow === level
                     ? 'bg-danger/10 font-medium text-danger'
-                    : 'bg-raised text-muted hover:text-foreground',
+                    : 'bg-raised text-muted hover:text-text',
                 )}
               >
                 {FLOW_LABELS[level]}
@@ -280,7 +280,7 @@ export const PeriodTool = (): React.JSX.Element => {
                   'h-9 rounded-full px-sm text-small transition-colors',
                   symptoms.includes(symptom)
                     ? 'bg-primary/10 font-medium text-primary'
-                    : 'bg-raised text-muted hover:text-foreground',
+                    : 'bg-raised text-muted hover:text-text',
                 )}
               >
                 {SYMPTOM_LABELS[symptom]}

@@ -112,7 +112,7 @@ export const PostComposer = ({
         aria-invalid={state.fieldErrors['body'] === undefined ? undefined : true}
         className={cn(
           'w-full resize-y rounded-md border border-border bg-canvas px-sm py-xs',
-          'text-body text-text placeholder:text-text-muted',
+          'text-body text-text placeholder:text-muted',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
         )}
       />
@@ -140,7 +140,7 @@ export const PostComposer = ({
           aria-live="polite"
           className={cn(
             'ml-auto text-caption tabular-nums',
-            remaining < 0 ? 'text-danger' : 'text-text-muted',
+            remaining < 0 ? 'text-danger' : 'text-muted',
           )}
         >
           {remaining}

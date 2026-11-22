@@ -99,7 +99,7 @@ export const ListingView = ({
     <article className="flex flex-col gap-lg">
       <Link
         href="/market"
-        className="flex items-center gap-xs text-small text-muted hover:text-foreground"
+        className="flex items-center gap-xs text-small text-muted hover:text-text"
       >
         <ArrowLeft aria-hidden className="size-4" />
         Market
@@ -118,10 +118,12 @@ export const ListingView = ({
           </span>
         </div>
 
-        <p className="text-h2 font-semibold">{priceLabel(listing.priceMinor, listing.currency)}</p>
+        <p className="text-subheading font-semibold">
+          {priceLabel(listing.priceMinor, listing.currency)}
+        </p>
 
         <p className="text-small text-muted">
-          Sold by <span className="text-foreground">{listing.seller.displayName}</span>
+          Sold by <span className="text-text">{listing.seller.displayName}</span>
           {listing.isSeller ? ' (you)' : ''}
         </p>
       </header>

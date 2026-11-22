@@ -308,7 +308,7 @@ export const ThreadView = ({ threadId }: { readonly threadId: string }): React.J
                 <div
                   className={cn(
                     'max-w-[86%] rounded-lg px-sm py-xs text-body',
-                    mine ? 'bg-primary text-on-primary' : 'bg-raised text-foreground',
+                    mine ? 'bg-primary text-primary-contrast' : 'bg-raised text-text',
                     message.deleted && 'italic opacity-70',
                   )}
                 >

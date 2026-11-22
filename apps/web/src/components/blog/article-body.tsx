@@ -147,8 +147,8 @@ export const parseArticle = (body: string): readonly Block[] => {
 };
 
 const HEADING_CLASS: Readonly<Record<number, string>> = {
-  1: 'text-h2 font-semibold',
-  2: 'text-h3 font-semibold',
+  1: 'text-subheading font-semibold',
+  2: 'text-body font-semibold',
   3: 'text-body font-semibold',
 };
 

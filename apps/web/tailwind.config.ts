@@ -11,6 +11,7 @@
  * twice the classes, twice the chance of forgetting one.
  */
 
+import defaultTheme from 'tailwindcss/defaultTheme';
 import type { Config } from 'tailwindcss';
 import { breakpoints, layout, radius, spacing, typography } from '@socialhub/config';
 
@@ -46,11 +47,21 @@ const config: Config = {
       'danger-surface': semantic('danger-surface'),
       ring: semantic('focus-ring'),
     },
-    // `spacing` replaces Tailwind's default scale, so it must include the two
-    // values the base resets rely on: `m-0` for margin resets and `auto` for
-    // centring. Both are part of the scale, not exceptions to it.
-    spacing: { ...spacing, auto: 'auto' },
-    borderRadius: radius,
+    /**
+     * The named tokens are *added* to Tailwind's numeric scale, not substituted for it.
+     *
+     * Substitution looks tidy and is a trap: `spacing` is the base for `w`, `h`, `size`,
+     * `gap`, `padding`, `margin` and `inset`, and replacing it means `size-4`, `h-11` and
+     * `gap-1` stop existing. Tailwind does not warn — an unknown class is simply not
+     * emitted — so every icon, avatar and button silently lost its dimensions and the only
+     * symptom was a slightly wrong-looking page. `tools/class-check.mjs` now fails the
+     * build if a utility is used but never defined.
+     *
+     * Numeric steps stay available for the small, mechanical sizes; the named tokens are
+     * what component code should reach for, because they carry design intent.
+     */
+    spacing: { ...defaultTheme.spacing, ...spacing, auto: 'auto' },
+    borderRadius: { ...defaultTheme.borderRadius, ...radius },
     screens: breakpoints,
     fontFamily: {
       sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
@@ -72,6 +83,10 @@ const config: Config = {
     extend: {
       maxWidth: { content: layout.contentMax, shell: layout.shellMax },
       height: { header: layout.headerHeight, bottomNav: layout.bottomNavHeight },
+      // `top-header` positions the sticky thead and the mobile drawer under the header.
+      // It is an `extend` entry rather than a spacing token because it is a layout
+      // measurement, not a step on the spacing scale.
+      inset: { header: layout.headerHeight },
       minHeight: { touch: layout.touchTarget },
       minWidth: { touch: layout.touchTarget },
       boxShadow: {

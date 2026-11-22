@@ -106,25 +106,23 @@ export const PostCard = ({ post, now, onChanged, isOwn }: PostCardProps): React.
           >
             {post.author.displayName}
           </Link>
-          <span className="truncate text-caption text-text-muted">@{post.author.username}</span>
-          <span aria-hidden className="text-caption text-text-muted">
+          <span className="truncate text-caption text-muted">@{post.author.username}</span>
+          <span aria-hidden className="text-caption text-muted">
             ·
           </span>
           <time
             dateTime={post.createdAt}
             title={absoluteTime(post.createdAt)}
-            className="text-caption text-text-muted"
+            className="text-caption text-muted"
           >
             {relativeTime(post.createdAt, now)}
           </time>
           {post.visibility === 'PUBLIC' ? null : (
-            <span className="rounded-sm bg-surface-raised px-xs text-caption text-text-muted">
+            <span className="rounded-sm bg-raised px-xs text-caption text-muted">
               {VISIBILITY_HINT[post.visibility]}
             </span>
           )}
-          {post.editedAt === null ? null : (
-            <span className="text-caption text-text-muted">edited</span>
-          )}
+          {post.editedAt === null ? null : <span className="text-caption text-muted">edited</span>}
 
           <div className={cn('relative', isOwn ? 'ml-auto' : 'ml-auto w-0')}>
             {isOwn ? (
@@ -133,7 +131,7 @@ export const PostCard = ({ post, now, onChanged, isOwn }: PostCardProps): React.
                 aria-label="Post actions"
                 aria-expanded={menuOpen}
                 onClick={() => setMenuOpen((open) => !open)}
-                className="inline-flex size-11 items-center justify-center rounded-md text-text-muted hover:bg-surface-raised"
+                className="inline-flex size-11 items-center justify-center rounded-md text-muted hover:bg-raised"
               >
                 <MoreHorizontal aria-hidden className="size-4" />
               </button>
@@ -169,14 +167,14 @@ export const PostCard = ({ post, now, onChanged, isOwn }: PostCardProps): React.
             type="button"
             onClick={() => setReplying((open) => !open)}
             aria-expanded={replying}
-            className="inline-flex h-11 items-center gap-xs rounded-md px-xs text-caption text-text-muted hover:text-text"
+            className="inline-flex h-11 items-center gap-xs rounded-md px-xs text-caption text-muted hover:text-text"
           >
             <MessageSquare aria-hidden className="size-4" />
             <span className="tabular-nums">{post.replyCount}</span>
             <span className="sr-only">replies</span>
           </button>
 
-          <span className="inline-flex h-11 items-center gap-xs px-xs text-caption text-text-muted">
+          <span className="inline-flex h-11 items-center gap-xs px-xs text-caption text-muted">
             <Repeat2 aria-hidden className="size-4" />
             <span className="tabular-nums">{post.repostCount}</span>
             <span className="sr-only">reposts</span>
@@ -190,7 +188,7 @@ export const PostCard = ({ post, now, onChanged, isOwn }: PostCardProps): React.
             aria-pressed={liked}
             className={cn(
               'inline-flex h-11 items-center gap-xs rounded-md px-xs text-caption',
-              liked ? 'text-danger' : 'text-text-muted hover:text-text',
+              liked ? 'text-danger' : 'text-muted hover:text-text',
             )}
           >
             <Heart aria-hidden className={cn('size-4', liked && 'fill-current')} />

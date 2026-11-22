@@ -142,7 +142,7 @@ export const BudgetTool = (): React.JSX.Element => {
         <>
           <div className="flex flex-col gap-xs rounded-lg border border-border p-md">
             <span className="text-caption text-muted">এই মাসে</span>
-            <p className="text-h2 font-semibold tabular-nums">
+            <p className="text-subheading font-semibold tabular-nums">
               ৳ {formatMoney({ currency: 'BDT', minor: summary.remaining })}
             </p>
             <p className="text-small text-muted">
@@ -239,7 +239,7 @@ export const BudgetTool = (): React.JSX.Element => {
                     ? option === 'INCOME'
                       ? 'bg-success/10 font-medium text-success'
                       : 'bg-danger/10 font-medium text-danger'
-                    : 'bg-raised text-muted hover:text-foreground',
+                    : 'bg-raised text-muted hover:text-text',
                 )}
               >
                 {DIRECTION_LABELS[option]}
@@ -353,7 +353,7 @@ export const BudgetTool = (): React.JSX.Element => {
                 <span
                   className={cn(
                     'shrink-0 text-small font-medium tabular-nums',
-                    entry.direction === 'INCOME' ? 'text-success' : 'text-foreground',
+                    entry.direction === 'INCOME' ? 'text-success' : 'text-text',
                   )}
                 >
                   {entry.direction === 'INCOME' ? '+' : '−'} ৳{' '}

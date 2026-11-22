@@ -133,7 +133,7 @@ export const ArticleList = (): React.JSX.Element => {
       {tag !== null ? (
         <p className="flex items-center gap-xs text-small text-muted">
           <Tag aria-hidden className="size-3" />
-          Tagged <span className="font-medium text-foreground">{tag}</span>
+          Tagged <span className="font-medium text-text">{tag}</span>
         </p>
       ) : null}
 
@@ -185,7 +185,7 @@ export const ArticleList = (): React.JSX.Element => {
           <li key={article.id} className="border-b border-border pb-md">
             <Link href={`/blog/${article.slug}`} className="flex flex-col gap-xs">
               <span className="flex items-center gap-xs">
-                <span className="text-h3 font-semibold">{article.title}</span>
+                <span className="text-body font-semibold">{article.title}</span>
                 {mine ? (
                   <span
                     className={cn(

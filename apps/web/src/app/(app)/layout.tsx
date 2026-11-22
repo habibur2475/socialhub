@@ -44,7 +44,7 @@ export default function AppLayout({
   useEffect(() => {
     if (status === 'anonymous') {
       // `next` preserves where the user was going, so signing in does not dump
-      // them on the dashboard when they were heading somewhere specific.
+      // them on the feed when they were heading somewhere specific.
       const next = encodeURIComponent(window.location.pathname + window.location.search);
       router.replace(`/login?next=${next}`);
     }

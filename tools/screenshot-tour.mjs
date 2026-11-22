@@ -154,8 +154,10 @@ if (new URL(page.url()).pathname.startsWith('/login')) {
 }
 console.log(`  ok signed in as ada (${stored.size} cookies stored)`);
 
-await capture(page, 'feed', '/', 'text=Ada Lovelace');
-await capture(page, 'dashboard', '/dashboard', 'text=Ada Lovelace');
+// `/feed` is the signed-in home. The assertion names a post made by someone ada follows,
+// not ada herself: her own posts are on her profile, and a feed that only showed your own
+// writing would still pass an assertion about your own name.
+await capture(page, 'feed', '/feed', 'text=Grace Hopper');
 await capture(page, 'profile', '/u/ada', 'text=Ada Lovelace');
 await capture(page, 'notifications', '/notifications', 'main');
 await capture(page, 'quiz-library', '/quiz', 'text=Engines and algorithms');
@@ -176,7 +178,9 @@ await capture(
 );
 await capture(page, 'market-new', '/market/new', 'text=Put on sale');
 await capture(page, 'market-cart', '/market/cart', 'main');
-await capture(page, 'orders', '/market/orders', 'text=Hand-thrown clay kettle');
+// The demo order is grace's purchase of ada's kettle, so ada sees it as a *sale*. Assert
+// on the counterparty, which is true from whichever end of the order you look.
+await capture(page, 'orders', '/market/orders', 'text=Grace Hopper');
 await capture(page, 'settings', '/settings/profile', 'text=Display name');
 
 // ------------------------------------------------- the screens behind a single row
@@ -225,7 +229,7 @@ if (new URL(mobilePage.url()).pathname.startsWith('/login')) {
 // is the one that proves the mobile shell is up.
 await mobilePage.locator('nav[aria-label="Primary"]:visible').first().waitFor({ timeout: 20_000 });
 
-await capture(mobilePage, 'mobile-feed', '/', 'main');
+await capture(mobilePage, 'mobile-feed', '/feed', 'main');
 await capture(mobilePage, 'mobile-market', '/market', 'main');
 await capture(mobilePage, 'mobile-tools', '/tools', 'text=Notes');
 

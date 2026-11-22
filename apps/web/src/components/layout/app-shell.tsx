@@ -79,7 +79,7 @@ export const AppShell = ({ children }: { readonly children: ReactNode }): React.
           <span className="sr-only">Open navigation</span>
         </button>
 
-        <Link href="/" className="flex items-center gap-xs">
+        <Link href="/feed" className="flex items-center gap-xs">
           <span
             aria-hidden
             className="grid size-8 place-items-center rounded-md bg-primary text-small font-bold text-primary-contrast"
@@ -106,7 +106,10 @@ export const AppShell = ({ children }: { readonly children: ReactNode }): React.
         >
           <nav aria-label="Primary" className="flex flex-col gap-[2px] p-xs">
             {NAV_ITEMS.map(({ key, label, href, icon: Icon, status }) => {
-              const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
+              // Exact match for `/feed`, prefix match elsewhere: `/market` is the section,
+              // `/market/cart` belongs to it. Exact for the home feed keeps `/feed` from
+              // lighting up on every page the way a `/` prefix would.
+              const active = pathname === href || pathname.startsWith(`${href}/`);
               return (
                 <Link
                   key={key}
@@ -192,7 +195,10 @@ export const AppShell = ({ children }: { readonly children: ReactNode }): React.
         className="fixed inset-x-0 bottom-0 z-sticky flex h-bottomNav items-center border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
       >
         {MOBILE_PRIMARY_ITEMS.map(({ key, label, href, icon: Icon }) => {
-          const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
+          // Exact match for `/feed`, prefix match elsewhere: `/market` is the section,
+          // `/market/cart` belongs to it. Exact for the home feed keeps `/feed` from
+          // lighting up on every page the way a `/` prefix would.
+          const active = pathname === href || pathname.startsWith(`${href}/`);
           return (
             <Link
               key={key}

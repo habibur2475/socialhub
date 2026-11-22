@@ -42,7 +42,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     key: 'home',
     label: 'Home',
-    href: '/',
+    href: '/feed',
     icon: Home,
     mobilePrimary: true,
     description: 'Your feed, the people you follow, and what is happening now.',

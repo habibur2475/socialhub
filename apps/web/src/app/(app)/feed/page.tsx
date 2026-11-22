@@ -1,8 +1,12 @@
 /**
  * Home feed.
  *
- * This is the signed-in landing page: the composer plus the timeline. It is a
- * client component because the access token lives in memory, so the fetch cannot
+ * This is the signed-in landing page — the composer plus the timeline. It lives at
+ * `/feed` rather than `/` because `/` is the marketing page: one URL cannot be both a
+ * sales pitch and a feed, and the version that resolved to the pitch for a signed-in
+ * person was the more confusing of the two.
+ *
+ * It is a client component because the access token lives in memory, so the fetch cannot
  * happen on the server.
  */
 

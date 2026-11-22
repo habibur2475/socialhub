@@ -21,6 +21,7 @@ import { QuizModule } from './modules/quiz/quiz.module.js';
 import { ForumModule } from './modules/forum/forum.module.js';
 import { MessagingModule } from './modules/messaging/messaging.module.js';
 import { BlogModule } from './modules/blog/blog.module.js';
+import { ToolsModule } from './modules/tools/tools.module.js';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { BlogModule } from './modules/blog/blog.module.js';
     ForumModule,
     MessagingModule,
     BlogModule,
+    ToolsModule,
     HealthModule,
   ],
   providers: [

@@ -21,6 +21,12 @@ import {
   updateGroupThreadRequestSchema,
   MESSAGE_BODY_MAX_LENGTH,
 } from './messaging.js';
+import {
+  createNoteRequestSchema,
+  noteQuerySchema,
+  updateNoteRequestSchema,
+  NOTE_MAX_LENGTH,
+} from './tools.js';
 
 const option = (label: string, correct: boolean) => ({ label, correct });
 
@@ -295,5 +301,43 @@ describe('blog contracts', () => {
     expect(articleQuerySchema.parse({ tag: 'Not A Tag' }).tag).toBe('not-a-tag');
     expect(articleQuerySchema.safeParse({ tag: 'under_score' }).success).toBe(false);
     expect(articleQuerySchema.safeParse({ limit: '0' }).success).toBe(false);
+  });
+});
+
+describe('tools contracts', () => {
+  it('accepts a note and leaves the title to the server', () => {
+    const parsed = createNoteRequestSchema.parse({ body: 'Shopping\nmilk' });
+    expect(parsed.body).toBe('Shopping\nmilk');
+    expect('title' in parsed).toBe(false);
+  });
+
+  it('refuses an empty, blank or over-long note', () => {
+    expect(createNoteRequestSchema.safeParse({ body: '   ' }).success).toBe(false);
+    expect(
+      createNoteRequestSchema.safeParse({ body: 'x'.repeat(NOTE_MAX_LENGTH + 1) }).success,
+    ).toBe(false);
+    expect(createNoteRequestSchema.safeParse({ body: 'a note' }).success).toBe(true);
+  });
+
+  it('refuses an unknown field rather than silently dropping it', () => {
+    expect(createNoteRequestSchema.safeParse({ body: 'a', title: 'x' }).success).toBe(false);
+  });
+
+  it('allows a pin toggle as an edit on its own', () => {
+    expect(updateNoteRequestSchema.safeParse({ pinned: true }).success).toBe(true);
+    expect(updateNoteRequestSchema.safeParse({}).success).toBe(false);
+  });
+
+  it('coerces the note query and its flags', () => {
+    const empty = noteQuerySchema.parse({});
+    expect(empty.limit).toBe(50);
+    // An absent flag is absent, not false: `?pinned=false` and no flag mean different
+    // things to the list, and collapsing them would make "all notes" unreachable.
+    expect(empty.pinned).toBeUndefined();
+    expect(noteQuerySchema.parse({ pinned: 'false', limit: '10' })).toMatchObject({
+      limit: 10,
+      pinned: false,
+    });
+    expect(noteQuerySchema.safeParse({ limit: '101' }).success).toBe(false);
   });
 });

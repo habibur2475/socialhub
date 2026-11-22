@@ -18,19 +18,29 @@
   ok market-listing
   ok market-new
   ok market-cart
-node:internal/modules/run_main:122
-    triggerUncaughtException(
-    ^
+  ok orders
+  ok settings
+  ok post
+  ok forum-thread
+  ok forum-new
+  ok quiz
+  ok quiz-new
+  ok conversation
+  ok message-new
+  ok blog-new
+  ok order
+  ok listing-edit
+  ok calculator
+  ok pdf-editor
+  ok period
+  ok qr-code
+  ok note
+  ok forgot-password
+  ok reset-password
+  ok verify-email
+  ok offline
+  ok mobile-feed
+  ok mobile-market
+  ok mobile-tools
 
-locator.click: Timeout 30000ms exceeded.
-Call log:
-  - waiting for getByRole('button', { name: 'Selling' })
-
-    at /home/runner/work/socialhub/socialhub/tools/screenshot-tour.mjs:210:59
-    at capture (/home/runner/work/socialhub/socialhub/tools/screenshot-tour.mjs:105:34)
-    at async file:///home/runner/work/socialhub/socialhub/tools/screenshot-tour.mjs:204:1 {
-  log: [ "  - waiting for getByRole('button', { name: 'Selling' })" ],
-  name: 'TimeoutError'
-}
-
-Node.js v22.15.0
+43 screenshots written to docs/screenshots

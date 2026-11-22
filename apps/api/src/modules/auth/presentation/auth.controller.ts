@@ -75,7 +75,7 @@ export class AuthController {
   public constructor(
     @Inject(AUTH_SERVICE) private readonly auth: AuthService,
     @Inject(PermissionCache) private readonly permissions: PermissionCache,
-    @Inject(ENV) private readonly env: Env,
+    @Inject(ENV) env: Env,
   ) {
     // The pepper is derived from the refresh secret, which is already a required
     // 32-byte secret; this avoids introducing a second key that could drift.
@@ -254,7 +254,16 @@ export class AuthController {
   }
 
   private setSessionCookies(response: Response, session: SessionTokens): void {
-    const secure = this.env.NODE_ENV !== 'development';
+    /**
+     * Always `Secure`, not only outside development.
+     *
+     * A `__Host-` cookie without `Secure` is rejected outright by every browser — so the
+     * "relax it for local development" version of this line did not relax anything: it made
+     * signing in work once and the first reload lose the session, which is a bug you only
+     * see if you actually click. `http://localhost` counts as a secure context, so the flag
+     * costs local development nothing.
+     */
+    const secure = true;
     const sameSite: 'strict' = 'strict';
 
     response.cookie(REFRESH_COOKIE_NAME, session.refreshToken, {

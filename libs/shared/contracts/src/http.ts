@@ -39,8 +39,16 @@ export const REFRESH_COOKIE_NAME = '__Host-sh_rt';
 export const CSRF_COOKIE_NAME = '__Host-sh_csrf';
 export const CSRF_HEADER_NAME = 'x-csrf-token';
 
-/** The refresh cookie is scoped to its own endpoint, not the whole API. */
-export const REFRESH_COOKIE_PATH = '/api/v1/auth';
+/**
+ * `Path=/`, because the `__Host-` prefix *requires* it.
+ *
+ * The tempting alternative — scoping this cookie to `/api/v1/auth` — is silently rejected by
+ * every browser: a `__Host-` cookie whose path is not `/` is dropped, so the session appears
+ * to work until the first reload and then quietly disappears. The prefix buys more (a cookie
+ * no sibling subdomain and no subpath can forge) than the narrower path would, and the
+ * cookie is `HttpOnly` besides.
+ */
+export const REFRESH_COOKIE_PATH = '/';
 
 export const REQUEST_ID_HEADER = 'x-request-id';
 

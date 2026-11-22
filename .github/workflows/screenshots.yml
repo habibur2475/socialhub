@@ -189,7 +189,7 @@ jobs:
           NODE_TLS_REJECT_UNAUTHORIZED: '0'
         run: |
           set -o pipefail
-          node tools/screenshot-tour.mjs 2>&1 | tee docs/screenshots/tour.log
+          node tools/screenshot-tour.mjs 2>&1 | tee docs/screenshots/tour-report.txt
 
       - name: Keep the screenshots in the branch
         if: always()
@@ -207,7 +207,7 @@ jobs:
       - name: Fail if a screen did not render
         if: steps.tour.outcome == 'failure'
         run: |
-          echo 'The tour reported a failure; see docs/screenshots/tour.log'
+          echo 'The tour reported a failure; see docs/screenshots/tour-report.txt'
           exit 1
 
       - name: Upload the images

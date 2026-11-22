@@ -9,9 +9,32 @@ import type { NextConfig } from 'next';
  * its own policy on top in production, but it must not be the only place these
  * exist.
  */
+/**
+ * Framing policy.
+ *
+ * `DENY` is the right default: nothing should be able to frame this app, which
+ * removes clickjacking as a category of attack. A hosted preview is the one
+ * exception — it renders the site inside its own iframe, and `DENY` turns that
+ * into a blank panel. So the exception is explicit and opt-in (an environment
+ * variable naming the ancestors) rather than a looser default: a deployment that
+ * does not set it keeps `DENY`, and a deployment that sets it names exactly which
+ * origins may frame the app instead of allowing everyone.
+ */
+const frameAncestors = (process.env['PREVIEW_FRAME_ANCESTORS'] ?? '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter((origin) => origin.length > 0);
+
 const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
-  { key: 'X-Frame-Options', value: 'DENY' },
+  ...(frameAncestors.length === 0
+    ? [{ key: 'X-Frame-Options', value: 'DENY' }]
+    : [
+        {
+          key: 'Content-Security-Policy',
+          value: `frame-ancestors 'self' ${frameAncestors.join(' ')}`,
+        },
+      ]),
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   { key: 'X-DNS-Prefetch-Control', value: 'on' },
   {

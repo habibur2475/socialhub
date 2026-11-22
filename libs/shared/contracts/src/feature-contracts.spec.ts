@@ -6,6 +6,12 @@ import {
   quizSetQuerySchema,
 } from './quiz.js';
 import { createThreadRequestSchema, threadQuerySchema } from './forum.js';
+import {
+  CSRF_COOKIE_NAME,
+  CSRF_HEADER_NAME,
+  REFRESH_COOKIE_NAME,
+  REFRESH_COOKIE_PATH,
+} from './http.js';
 import { notificationQuerySchema } from './notifications.js';
 import {
   articleQuerySchema,
@@ -436,5 +442,29 @@ describe('market contracts', () => {
     expect(orderQuerySchema.parse({}).role).toBe('BUYING');
     expect(orderQuerySchema.safeParse({ role: 'BOTH' }).success).toBe(false);
     expect(orderQuerySchema.safeParse({ status: 'LIVE' }).success).toBe(false);
+  });
+});
+
+/**
+ * The cookie names and paths are contract, not implementation.
+ *
+ * This test exists because of a bug that no unit test caught and no browser forgave: the
+ * refresh cookie was written with `Path=/api/v1/auth`, and a `__Host-` cookie is only stored
+ * when its path is `/`. Every browser silently dropped it, so signing in worked and the first
+ * reload logged the user out. Restating the rule here makes that impossible to reintroduce
+ * quietly.
+ */
+describe('session cookies', () => {
+  it('uses the `__Host-` prefix for both cookies', () => {
+    expect(REFRESH_COOKIE_NAME.startsWith('__Host-')).toBe(true);
+    expect(CSRF_COOKIE_NAME.startsWith('__Host-')).toBe(true);
+  });
+
+  it('scopes the refresh cookie to `/`, which the prefix requires', () => {
+    expect(REFRESH_COOKIE_PATH).toBe('/');
+  });
+
+  it('names the CSRF header something a cross-site form cannot set', () => {
+    expect(CSRF_HEADER_NAME).toBe('x-csrf-token');
   });
 });

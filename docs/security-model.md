@@ -80,7 +80,15 @@ authorisation never fails open.
 - `session_epoch` is bumped by a trigger whenever the password or MFA material
   changes, invalidating every outstanding token for the account atomically.
 - Cookies use the `__Host-` prefix (requires `Secure`, `Path=/`, no `Domain`),
-  `HttpOnly`, `SameSite=Strict`. CSRF uses double-submit: a readable nonce cookie
+  `HttpOnly`, `SameSite=Strict`. Both requirements are unconditional — including
+  in development — because a `__Host-` cookie that breaks either rule is not
+  weakened, it is **discarded**: the browser stores nothing, the in-memory access
+  token hides the problem until the first reload, and the symptom is "signing in
+  does not stick". `http://localhost` is a secure context, so keeping `Secure` on
+  costs local development nothing.
+- Framing defaults to `X-Frame-Options: DENY`. A hosting preview that renders the
+  app inside an iframe must opt in with `PREVIEW_FRAME_ANCESTORS`, which swaps in
+  `Content-Security-Policy: frame-ancestors 'self' <origins>` citing exact origins. CSRF uses double-submit: a readable nonce cookie
   echoed in a header, which a cross-site request cannot produce.
 
 ## 5. Credentials

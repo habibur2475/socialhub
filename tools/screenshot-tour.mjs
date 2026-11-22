@@ -99,7 +99,24 @@ await page.getByLabel(/email/i).fill(EMAIL);
 await page.getByLabel(/password/i).fill(PASSWORD);
 await page.getByRole('button', { name: /sign in/i }).click();
 await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20_000 });
-console.log('  ok signed in as ada');
+
+/**
+ * Signing in is not enough: every screenshot below is a fresh navigation, and a fresh
+ * navigation can only keep the session if the HttpOnly refresh cookie was actually
+ * stored. That is where a `__Host-` cookie goes wrong silently — a wrong `Path` or a
+ * missing `Secure` flag makes the browser drop it, the in-memory access token survives
+ * the current page anyway, and the first reload looks like "my login did not stick".
+ */
+const sessionCookies = await page.context().cookies();
+const stored = new Set(sessionCookies.map((cookie) => cookie.name));
+for (const name of ['__Host-sh_rt', '__Host-sh_csrf']) {
+  if (!stored.has(name)) failures.push(`session: the browser refused the ${name} cookie`);
+}
+await page.reload({ waitUntil: 'networkidle' });
+if (new URL(page.url()).pathname.startsWith('/login')) {
+  failures.push('session: a reload after signing in fell back to the login form');
+}
+console.log(`  ok signed in as ada (${stored.size} cookies stored)`);
 
 await capture(page, 'feed', '/', 'text=Ada Lovelace');
 await capture(page, 'dashboard', '/dashboard', 'text=Ada Lovelace');
@@ -133,6 +150,10 @@ await mobilePage.getByLabel(/email/i).fill(EMAIL);
 await mobilePage.getByLabel(/password/i).fill(PASSWORD);
 await mobilePage.getByRole('button', { name: /sign in/i }).click();
 await mobilePage.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20_000 });
+await mobilePage.reload({ waitUntil: 'networkidle' });
+if (new URL(mobilePage.url()).pathname.startsWith('/login')) {
+  failures.push('session (mobile): a reload after signing in fell back to the login form');
+}
 
 await mobilePage.locator('nav[aria-label="Primary"]').first().waitFor({ timeout: 20_000 });
 

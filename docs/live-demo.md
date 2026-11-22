@@ -384,3 +384,14 @@ pnpm --filter @socialhub/web start         # :3000
 The web app proxies `/api/*` to the API, so the browser only ever talks to one
 origin — which is what makes `__Host-` cookies and `credentials: 'include'`
 behave predictably.
+
+If you serve the app inside someone else's iframe (a hosted preview, a demo
+gallery), set `PREVIEW_FRAME_ANCESTORS` to the list of origins allowed to frame
+it before `pnpm --filter @socialhub/web build`:
+
+```bash
+PREVIEW_FRAME_ANCESTORS="https://*.e2b.app" pnpm --filter @socialhub/web build
+```
+
+Without it the app sends `X-Frame-Options: DENY` and a framing host shows an
+empty panel rather than a page — a deliberate default, not a broken build.

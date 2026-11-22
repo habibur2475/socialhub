@@ -10,6 +10,8 @@ import { randomUUID } from 'node:crypto';
 import { Pool, type PoolClient } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { canMoveJob, canMoveMilestone } from '@socialhub/kernel';
+
 const CONNECTION = process.env['TEST_DATABASE_URL'];
 const describeWithDb = CONNECTION === undefined ? describe.skip : describe;
 
@@ -1882,3 +1884,382 @@ describeWithDb('market schema', () => {
     expect(rows.map((row) => row.to_status)).toEqual(['PENDING', 'RESERVED']);
   });
 });
+
+describeWithDb('work schema', () => {
+  /**
+   * The properties that make a job marketplace trustworthy: one award per job, a plan that adds
+   * up, an escrow whose history cannot be edited, and a clock the job's openness actually
+   * respects.
+   */
+  const createJob = async (
+    overrides: Partial<{ client: string; status: string; budget: number; deadline: string }> = {},
+  ): Promise<string> => {
+    const id = randomUUID();
+    const clientId = overrides.client ?? (await createUserWithProfile());
+
+    await client.query(
+      `INSERT INTO work_jobs (id, client_id, title, description, budget_minor, status, deadline)
+       VALUES ($1, $2, 'A perfectly good errand', 'Write the thing, please.', $3, $4, $5)`,
+      [
+        id,
+        clientId,
+        overrides.budget ?? 100_000,
+        overrides.status ?? 'OPEN',
+        overrides.deadline ?? '2027-06-01T00:00:00Z',
+      ],
+    );
+
+    return id;
+  };
+
+  const propose = async (
+    jobId: string,
+    overrides: Partial<{ freelancer: string; bid: number; status: string }> = {},
+  ): Promise<string> => {
+    const id = randomUUID();
+    const freelancerId = overrides.freelancer ?? (await createUserWithProfile());
+
+    await client.query(
+      `INSERT INTO work_proposals (id, job_id, freelancer_id, bid_minor, cover_letter, delivery_days, status)
+       VALUES ($1, $2, $3, $4, 'I have done this exact thing three times before, and here is how.', 14, $5)`,
+      [id, jobId, freelancerId, overrides.bid ?? 90_000, overrides.status ?? 'PENDING'],
+    );
+
+    return id;
+  };
+
+  const createContract = async (
+    overrides: Partial<{ amount: number; plan: readonly number[] }> = {},
+  ): Promise<string> => {
+    const job = await createJob({ status: 'ASSIGNED' });
+    const id = randomUUID();
+    // The job row already names its client; reading it back keeps the contract's two parties
+    // consistent with the job it belongs to.
+    const { rows } = await client.query<{ client_id: string }>(
+      'SELECT client_id FROM work_jobs WHERE id = $1',
+      [job],
+    );
+    const owner = rows[0]?.client_id;
+    if (owner === undefined) throw new Error('the job disappeared between two queries');
+
+    const freelancer = await createUserWithProfile();
+
+    await client.query(
+      `INSERT INTO work_contracts (id, job_id, client_id, freelancer_id, amount_minor)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [id, job, owner, freelancer, overrides.amount ?? 100_000],
+    );
+
+    const plan = overrides.plan ?? [];
+    for (const [index, amount] of plan.entries()) {
+      await client.query(
+        `INSERT INTO work_milestones (id, contract_id, position, title, amount_minor)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [randomUUID(), id, index + 1, `Part ${String(index + 1)}`, amount],
+      );
+    }
+
+    // The plan-totals trigger is `DEFERRABLE INITIALLY DEFERRED`, so it fires at commit. Every
+    // statement here runs inside one implicit transaction, so the plan is only checked when the
+    // helper's caller commits — which is what lets a plan be written one milestone at a time.
+    // The tests that assert a bad plan is refused therefore run inside an explicit transaction
+    // and commit deliberately; see `expectPlanRefused`.
+    return id;
+  };
+
+  it('refuses a second accepted proposal on the same job', async () => {
+    const job = await createJob();
+    await propose(job, { status: 'ACCEPTED' });
+
+    await expect(propose(job, { status: 'ACCEPTED' })).rejects.toThrow(
+      /work_proposals_one_accepted_per_job/u,
+    );
+  });
+
+  it('refuses two live proposals from the same person, but allows one after a withdrawal', async () => {
+    const job = await createJob();
+    const freelancer = await createUserWithProfile();
+    const first = await propose(job, { freelancer });
+
+    await expect(propose(job, { freelancer })).rejects.toThrow(
+      /work_proposals_one_live_per_person/u,
+    );
+
+    // Withdrawing frees the slot: a withdrawn proposal is not a live one.
+    await client.query("UPDATE work_proposals SET status = 'WITHDRAWN' WHERE id = $1", [first]);
+    await expect(propose(job, { freelancer })).resolves.toBeDefined();
+  });
+
+  it('refuses a budget outside the floor and ceiling, and a title that is too short', async () => {
+    await expect(createJob({ budget: 4_999 })).rejects.toThrow(/work_jobs_budget_range/u);
+    await expect(createJob({ budget: 500_000_001 })).rejects.toThrow(/work_jobs_budget_range/u);
+
+    const client = await createUserWithProfile();
+    await expect(client_insert_short_title(client)).rejects.toThrow(/work_jobs_title_len/u);
+  });
+
+  /**
+   * Commits a contract and its plan on a dedicated connection.
+   *
+   * The deferred trigger only speaks at commit, so the assertion has to be about a commit —
+   * running it through the shared client would leave the check pending and the test would pass
+   * for the wrong reason.
+   */
+  const commitPlan = async (
+    amount: number,
+    plan: readonly number[],
+  ): Promise<{ ok: boolean; message: string }> => {
+    const connection = new Pool({ connectionString: CONNECTION, max: 1 });
+    const session = await connection.connect();
+
+    try {
+      await session.query('BEGIN');
+
+      const job = randomUUID();
+      const clientId = await createUserWithProfile();
+      const freelancer = await createUserWithProfile();
+      const contract = randomUUID();
+
+      await session.query(
+        `INSERT INTO work_jobs (id, client_id, title, budget_minor, status, deadline)
+         VALUES ($1, $2, 'A perfectly good errand', $3, 'ASSIGNED', '2027-06-01T00:00:00Z')`,
+        [job, clientId, amount],
+      );
+      await session.query(
+        `INSERT INTO work_contracts (id, job_id, client_id, freelancer_id, amount_minor)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [contract, job, clientId, freelancer, amount],
+      );
+
+      for (const [index, part] of plan.entries()) {
+        await session.query(
+          `INSERT INTO work_milestones (id, contract_id, position, title, amount_minor)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [randomUUID(), contract, index + 1, `Part ${String(index + 1)}`, part],
+        );
+      }
+
+      await session.query('COMMIT');
+      return { ok: true, message: '' };
+    } catch (error) {
+      await session.query('ROLLBACK');
+      return { ok: false, message: error instanceof Error ? error.message : String(error) };
+    } finally {
+      session.release();
+      await connection.end();
+    }
+  };
+
+  it('refuses a milestone plan that does not add up to the contract amount', async () => {
+    const result = await commitPlan(100_000, [33_333, 33_333, 33_333]);
+    expect(result.ok).toBe(false);
+    // Both numbers, so whoever reads the error does not recompute a sum Postgres already has.
+    expect(result.message).toMatch(/expected 100000, got 99999/u);
+  });
+
+  it('accepts a plan that adds up, including the one that needs the last paisa', async () => {
+    await expect(commitPlan(100_000, [33_333, 33_333, 33_334])).resolves.toEqual({
+      ok: true,
+      message: '',
+    });
+  });
+
+  it('refuses an illegal milestone transition with the kernel’s own table', async () => {
+    const contract = await createContract({ plan: [100_000] });
+
+    await expect(
+      client.query(
+        `UPDATE work_milestones SET status = 'RELEASED', submitted_at = now(), released_at = now()
+          WHERE contract_id = $1`,
+        [contract],
+      ),
+    ).rejects.toThrow(/illegal milestone transition PLANNED -> RELEASED/u);
+  });
+
+  it('agrees with the kernel on every legal milestone move', async () => {
+    const stages = ['PLANNED', 'FUNDED', 'SUBMITTED', 'RELEASED'] as const;
+    const { rows } = await client.query<{
+      from_status: string;
+      to_status: string;
+      allowed: boolean;
+    }>(
+      `SELECT f.from_status, t.to_status, can_move_milestone(f.from_status, t.to_status) AS allowed
+         FROM unnest($1::text[]) AS f(from_status)
+        CROSS JOIN unnest($1::text[]) AS t(to_status)`,
+      [stages],
+    );
+
+    for (const row of rows) {
+      expect({ from: row.from_status, to: row.to_status, allowed: row.allowed }).toEqual({
+        from: row.from_status,
+        to: row.to_status,
+        allowed: canMoveMilestone(
+          row.from_status as (typeof stages)[number],
+          row.to_status as (typeof stages)[number],
+        ),
+      });
+    }
+  });
+
+  it('keeps the escrow ledger append-only', async () => {
+    const contract = await createContract();
+    const entry = randomUUID();
+
+    await client.query(
+      `INSERT INTO work_escrow_entries (id, contract_id, kind, amount_minor, actor)
+       VALUES ($1, $2, 'FUND', 100000, 'CLIENT')`,
+      [entry, contract],
+    );
+
+    await expect(
+      client.query('UPDATE work_escrow_entries SET amount_minor = 1 WHERE id = $1', [entry]),
+    ).rejects.toThrow(/append-only/u);
+
+    await expect(
+      client.query('DELETE FROM work_escrow_entries WHERE id = $1', [entry]),
+    ).rejects.toThrow(/append-only/u);
+  });
+
+  it('derives the escrow balance from its ledger rather than storing it', async () => {
+    const contract = await createContract();
+    await client.query(
+      `INSERT INTO work_escrow_entries (id, contract_id, kind, amount_minor, actor) VALUES
+         ($1, $2, 'FUND', 100000, 'CLIENT'),
+         ($3, $2, 'RELEASE', -60000, 'CLIENT')`,
+      [randomUUID(), contract, randomUUID()],
+    );
+
+    const { rows } = await client.query<{ balance: string }>(
+      'SELECT work_contract_balance($1) AS balance',
+      [contract],
+    );
+    expect(Number(rows[0]?.balance)).toBe(40_000);
+  });
+
+  it('refuses a negative FUND and a positive RELEASE, because the sign is the meaning', async () => {
+    const contract = await createContract();
+
+    await expect(
+      client.query(
+        `INSERT INTO work_escrow_entries (id, contract_id, kind, amount_minor, actor)
+         VALUES ($1, $2, 'FUND', -1000, 'CLIENT')`,
+        [randomUUID(), contract],
+      ),
+    ).rejects.toThrow(/work_escrow_sign_matches_kind/u);
+
+    await expect(
+      client.query(
+        `INSERT INTO work_escrow_entries (id, contract_id, kind, amount_minor, actor)
+         VALUES ($1, $2, 'RELEASE', 1000, 'CLIENT')`,
+        [randomUUID(), contract],
+      ),
+    ).rejects.toThrow(/work_escrow_sign_matches_kind/u);
+  });
+
+  it('answers whether a job is open from the deadline, not only from the status', async () => {
+    const future = await createJob({ deadline: '2027-06-01T00:00:00Z' });
+    const past = await createJob({ deadline: '2020-01-01T00:00:00Z' });
+
+    const open = async (id: string): Promise<boolean> => {
+      const { rows } = await client.query<{ open: boolean }>(
+        'SELECT work_job_is_open($1) AS open',
+        [id],
+      );
+      return rows[0]?.open === true;
+    };
+
+    // Both rows say OPEN; only one is actually accepting proposals.
+    expect(await open(future)).toBe(true);
+    expect(await open(past)).toBe(false);
+  });
+
+  it('refuses a contract with the client as their own freelancer', async () => {
+    const owner = await createUserWithProfile();
+    const job = await createJob({ client: owner, status: 'ASSIGNED' });
+
+    await expect(
+      client.query(
+        `INSERT INTO work_contracts (id, job_id, client_id, freelancer_id, amount_minor)
+         VALUES ($1, $2, $3, $3, 100000)`,
+        [randomUUID(), job, owner],
+      ),
+    ).rejects.toThrow(/work_contracts_not_self/u);
+  });
+
+  it('shows a contract to its two parties and to nobody else', async () => {
+    const contract = await createContract();
+    const { rows } = await client.query<{ client_id: string; freelancer_id: string }>(
+      'SELECT client_id, freelancer_id FROM work_contracts WHERE id = $1',
+      [contract],
+    );
+    const row = rows[0];
+    const outsider = await createUserWithProfile();
+
+    expect(row).toBeDefined();
+    if (row === undefined) return;
+
+    const canView = async (viewer: string): Promise<boolean> => {
+      const { rows: answer } = await client.query<{ allowed: boolean }>(
+        'SELECT can_view_contract($1, $2) AS allowed',
+        [contract, viewer],
+      );
+      return answer[0]?.allowed === true;
+    };
+
+    expect(await canView(row.client_id)).toBe(true);
+    expect(await canView(row.freelancer_id)).toBe(true);
+    expect(await canView(outsider)).toBe(false);
+  });
+
+  it('refuses an illegal job transition', async () => {
+    const job = await createJob({ status: 'DRAFT' });
+
+    await expect(
+      client.query("UPDATE work_jobs SET status = 'COMPLETED' WHERE id = $1", [job]),
+    ).rejects.toThrow(/illegal job transition DRAFT -> COMPLETED/u);
+  });
+
+  it('agrees with the kernel on every legal job move', async () => {
+    const stages = ['DRAFT', 'OPEN', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] as const;
+    const { rows } = await client.query<{
+      from_status: string;
+      to_status: string;
+      allowed: boolean;
+    }>(
+      `SELECT f.from_status, t.to_status, can_move_job(f.from_status, t.to_status) AS allowed
+         FROM unnest($1::text[]) AS f(from_status)
+        CROSS JOIN unnest($1::text[]) AS t(to_status)`,
+      [stages],
+    );
+
+    for (const row of rows) {
+      expect(row.allowed).toBe(
+        canMoveJob(
+          row.from_status as (typeof stages)[number],
+          row.to_status as (typeof stages)[number],
+        ),
+      );
+    }
+  });
+
+  it('takes the job and its proposals with the client’s account', async () => {
+    const clientId = await createUserWithProfile();
+    const job = await createJob({ client: clientId });
+    await propose(job);
+
+    await client.query('DELETE FROM accounts WHERE id = $1', [clientId]);
+
+    const { rowCount } = await client.query('SELECT 1 FROM work_proposals WHERE job_id = $1', [
+      job,
+    ]);
+    expect(rowCount).toBe(0);
+  });
+});
+
+/** A job with a title under the minimum, used by the length test. */
+const client_insert_short_title = async (clientId: string): Promise<unknown> =>
+  client.query(
+    `INSERT INTO work_jobs (id, client_id, title, budget_minor, deadline)
+     VALUES ($1, $2, 'Short', 100000, '2027-06-01T00:00:00Z')`,
+    [randomUUID(), clientId],
+  );

@@ -189,6 +189,15 @@ await capture(page, 'tool-budget', '/tools/budget', 'main');
 await capture(page, 'tool-age', '/tools/age-calculator', 'main');
 await capture(page, 'notes', '/tools/notes', 'text=Shopping');
 await capture(page, 'market', '/market', 'text=Hand-thrown clay kettle');
+// Work: the board, a job with proposals on it, the posting form, and a live contract with a
+// milestone waiting for approval — the state the whole module exists to make legible.
+// The board only shows jobs still taking proposals, which — after the seed awards ada's job —
+// is the design job linus posted. Asserting on the awarded one would photograph an empty board.
+await capture(page, 'work', '/work', 'text=Design a one-page logo sheet');
+await capture(page, 'work-new', '/work/new', 'text=Post a job');
+await capture(page, 'work-job', `/work/${demo.job}`, 'main');
+await capture(page, 'contracts', '/work/contracts', 'text=Contracts');
+await capture(page, 'contract', `/work/contracts/${demo.contract}`, 'main');
 await capture(
   page,
   'market-listing',
@@ -264,6 +273,7 @@ await mobilePage.locator('nav[aria-label="Primary"]:visible').first().waitFor({ 
 
 await capture(mobilePage, 'mobile-feed', '/feed', 'main');
 await capture(mobilePage, 'mobile-market', '/market', 'main');
+await capture(mobilePage, 'mobile-work', '/work', 'main');
 await capture(mobilePage, 'mobile-tools', '/tools', 'text=Notes');
 
 await browser.close();

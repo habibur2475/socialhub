@@ -23,6 +23,7 @@ import { MessagingModule } from './modules/messaging/messaging.module.js';
 import { BlogModule } from './modules/blog/blog.module.js';
 import { ToolsModule } from './modules/tools/tools.module.js';
 import { MarketModule } from './modules/market/market.module.js';
+import { WorkModule } from './modules/work/work.module.js';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { MarketModule } from './modules/market/market.module.js';
     BlogModule,
     ToolsModule,
     MarketModule,
+    WorkModule,
     HealthModule,
   ],
   providers: [

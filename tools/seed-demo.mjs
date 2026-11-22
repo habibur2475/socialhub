@@ -344,6 +344,186 @@ if ((graceOrders.body?.items ?? []).length === 0) {
   if (order.status !== 201) throw new Error(`demo order: ${order.status}`);
 }
 
+// ------------------------------------------------------------------------------ work
+//
+// Two jobs and one full contract, so the board has live work and the contract screen has
+// something with real money in it. Everything here goes through the API — an award is a
+// transaction, and a seed that wrote the rows itself would skip the transaction that makes the
+// escrow balance true.
+
+const OPEN_JOBS = [
+  {
+    client: ada,
+    title: 'Write the launch announcement for a notebook app',
+    description:
+      'Two paragraphs and a headline. Plain English, no exclamation marks. I have the feature list; you bring the sentences.',
+    category: 'writing',
+    budget: '6500',
+    days: 12,
+  },
+  {
+    client: ada,
+    title: 'Edit a five-minute how-to video down to two minutes',
+    description:
+      'Trim the pauses, keep every step in order, add captions for the three steps that only have narration. I have the raw footage and the script.',
+    category: 'video',
+    budget: '8000',
+    days: 18,
+  },
+  {
+    client: linus,
+    title: 'Design a one-page logo sheet for a small tool shop',
+    description:
+      'Three directions, one page each, delivered as SVG plus a PNG preview. Black and white first — colour is the easy part.',
+    category: 'design',
+    budget: '4200',
+    days: 9,
+  },
+  // Posted by grace, so ada is a *freelancer* on one job and a client on the others. Without
+  // this the client's proposal inbox has nothing pending in it after the seed, and the award
+  // screen — the one place the plan is typed — has no live proposal to plan for.
+  {
+    client: grace,
+    title: 'Translate a product page from English into Bengali',
+    description:
+      'About 900 words. Keep the tone plain, not promotional. I will send the page and the glossary.',
+    category: 'translation',
+    budget: '3600',
+    days: 15,
+  },
+];
+
+for (const input of OPEN_JOBS) {
+  const mine = await call('/api/v1/work/jobs?mine=true&openOnly=false', {
+    token: input.client.token,
+  });
+  const exists = (mine.body?.items ?? []).some((job) => job.title === input.title);
+  if (exists) continue;
+
+  const created = await call('/api/v1/work/jobs', {
+    method: 'POST',
+    token: input.client.token,
+    body: {
+      title: input.title,
+      description: input.description,
+      category: input.category,
+      budget: input.budget,
+      currency: 'BDT',
+      deadline: new Date(Date.now() + input.days * 86_400_000).toISOString(),
+      status: 'OPEN',
+    },
+  });
+  if (created.status !== 201) throw new Error(`job ${input.title}: ${created.status}`);
+}
+
+/**
+ * Bids, from both directions.
+ *
+ * Every open job posted by ada gets a bid from grace, and every open job posted by grace gets
+ * one from ada. Both accounts are therefore a client on some jobs and a freelancer on others —
+ * which is what a marketplace actually looks like, and what puts a pending proposal on the award
+ * screen of every fresh seed.
+ */
+const LETTERS = [
+  'I have written four launch posts for developer tools this year. The shape I would use: one headline, one paragraph on the problem, one on what changes. Happy to send three recent samples.',
+  'I have cut six product videos down to two minutes or less. The pause-trimming you describe is most of the work, and the captions need to match the narration word for word.',
+  'I have translated two developer-facing pages into Bengali this year, keeping technical terms in English with a short gloss the first time. Nine hundred words is a day of careful work; I would rather promise three and deliver early.',
+  'I have drawn marks for four small shops this year. Black and white first is the right instinct — the only way to find out whether a mark works before colour rescues it.',
+];
+
+const OPEN_TITLES = new Set(OPEN_JOBS.map((entry) => entry.title));
+
+for (const [owner, bidder] of [
+  [ada, grace],
+  [grace, ada],
+]) {
+  const jobs = await call('/api/v1/work/jobs?openOnly=true', { token: bidder.token });
+  const targets = (jobs.body?.items ?? []).filter(
+    (job) => job.client.username === owner.username && !job.isClient && !job.hasProposed,
+  );
+
+  for (const [index, target] of targets.entries()) {
+    if (!OPEN_TITLES.has(target.title)) continue;
+
+    const proposed = await call(`/api/v1/work/jobs/${target.id}/proposals`, {
+      method: 'POST',
+      token: bidder.token,
+      body: {
+        // A little under the budget: below-budget bids are the interesting case for the award
+        // screen, because the plan must add up to the *bid*, not to the posted budget.
+        bid: ((target.budgetMinor * 92) / 100 / 100).toFixed(2),
+        coverLetter: LETTERS[index % LETTERS.length],
+        deliveryDays: 4,
+      },
+    });
+    if (proposed.status !== 201) throw new Error(`proposal on ${target.title}: ${proposed.status}`);
+  }
+}
+
+// One contract, awarded end to end: grace wins ada's job, delivers the first milestone, and
+// ada has not approved it yet — so the contract screen shows a release waiting to happen, which
+// is the state worth screenshotting.
+const adaContracts = await call('/api/v1/work/contracts', { token: ada.token });
+if ((adaContracts.body?.items ?? []).length === 0) {
+  const mine = await call('/api/v1/work/jobs?mine=true&openOnly=false', { token: ada.token });
+  const candidates = (mine.body?.items ?? []).filter((entry) => entry.isAcceptingProposals);
+
+  // The job with a pending proposal on it — that is the award screen, and the seed should end
+  // with the contract it produces rather than guessing at the first row.
+  let job;
+  let inbox = [];
+  for (const candidate of candidates) {
+    const proposals = (
+      await call(`/api/v1/work/jobs/${candidate.id}/proposals`, { token: ada.token })
+    ).body;
+    const pending = (proposals ?? []).filter((proposal) => proposal.status === 'PENDING');
+    if (pending.length > 0) {
+      job = candidate;
+      inbox = pending;
+      break;
+    }
+  }
+
+  if (job !== undefined && inbox.length > 0) {
+    const chosen = inbox[0];
+    const half = Math.floor(chosen.bidMinor / 2);
+
+    const awarded = await call(`/api/v1/work/jobs/${job.id}/actions`, {
+      method: 'POST',
+      token: ada.token,
+      body: {
+        action: 'AWARD',
+        proposalId: chosen.id,
+        milestones: [
+          { title: 'Rough cut', amount: (half / 100).toFixed(2) },
+          {
+            title: 'Finished cut with captions',
+            amount: ((chosen.bidMinor - half) / 100).toFixed(2),
+          },
+        ],
+      },
+    });
+    if (awarded.status !== 200)
+      throw new Error(`award: ${awarded.status} ${awarded.body?.error?.message}`);
+
+    const contracts = await call('/api/v1/work/contracts', { token: grace.token });
+    const contract = (contracts.body?.items ?? [])[0];
+
+    if (contract !== undefined) {
+      // The freelancer starts and delivers the first milestone; ada leaves it in review.
+      await call(`/api/v1/work/jobs/${job.id}/actions`, {
+        method: 'POST',
+        token: grace.token,
+        body: { action: 'START' },
+      });
+      await call(
+        `/api/v1/work/contracts/${contract.id}/milestones/${contract.milestones[0].id}/actions`,
+        { method: 'POST', token: grace.token, body: { action: 'SUBMIT' } },
+      );
+    }
+  }
+}
+
 /**
  * Writes the ids the tour needs.
  *
@@ -358,8 +538,17 @@ const samplePost = (await client.query('SELECT id FROM posts LIMIT 1')).rows[0];
 const sampleOrder = (await client.query('SELECT id FROM market_orders ORDER BY created_at LIMIT 1'))
   .rows[0];
 
+const sampleJob = (
+  await client.query("SELECT id FROM work_jobs WHERE status <> 'DRAFT' ORDER BY created_at LIMIT 1")
+).rows[0];
+const sampleContract = (
+  await client.query('SELECT id FROM work_contracts ORDER BY created_at LIMIT 1')
+).rows[0];
+
 const ids = {
   thread: sampleThread?.id ?? null,
+  job: sampleJob?.id ?? null,
+  contract: sampleContract?.id ?? null,
   quiz: sampleQuiz?.id ?? null,
   note: sampleNote?.id ?? null,
   post: samplePost?.id ?? null,

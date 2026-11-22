@@ -20,3 +20,4 @@ export * from './messaging.js';
 export * from './blog.js';
 export * from './tools/index.js';
 export * from './market/index.js';
+export * from './work.js';

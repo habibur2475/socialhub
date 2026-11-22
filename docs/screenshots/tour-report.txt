@@ -15,6 +15,11 @@
   ok tool-age
   ok notes
   ok market
+  ok work
+  ok work-new
+  ok work-job
+  ok contracts
+  ok contract
   ok market-listing
   ok market-new
   ok market-cart
@@ -41,6 +46,7 @@
   ok offline
   ok mobile-feed
   ok mobile-market
+  ok mobile-work
   ok mobile-tools
 
-43 screenshots written to docs/screenshots
+49 screenshots written to docs/screenshots

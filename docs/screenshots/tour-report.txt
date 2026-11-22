@@ -1,0 +1,21 @@
+  ok marketing
+  ok login
+  ok register
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+
+page.reload: Timeout 30000ms exceeded.
+Call log:
+  - waiting for navigation until "networkidle"
+    - navigated to "https://socialhub.localhost:3443/dashboard"
+
+    at /home/runner/work/socialhub/socialhub/tools/screenshot-tour.mjs:115:12 {
+  log: [
+    '  - waiting for navigation until "networkidle"',
+    '    - navigated to "https://socialhub.localhost:3443/dashboard"'
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v22.15.0

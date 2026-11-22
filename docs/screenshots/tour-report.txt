@@ -1,19 +1,41 @@
   ok marketing
   ok login
   ok register
+  ok signed in as ada (2 cookies stored)
+  ! feed: expected text=Ada Lovelace
+  ok feed
+  ok dashboard
+  ok profile
+  ok notifications
+  ok quiz-library
+  ok forum
+  ok messages
+  ok blog
+  ok article
+  ok tools
+  ok tool-budget
+  ok tool-age
+  ok notes
+  ok market
+  ok market-listing
+  ok market-new
+  ok market-cart
+  ! orders: expected text=Hand-thrown clay kettle
+  ok orders
+  ok settings
 node:internal/modules/run_main:122
     triggerUncaughtException(
     ^
 
-page.reload: Timeout 30000ms exceeded.
+locator.waitFor: Timeout 20000ms exceeded.
 Call log:
-  - waiting for navigation until "networkidle"
-    - navigated to "https://socialhub.localhost:3443/dashboard"
+  - waiting for locator('nav[aria-label="Primary"]').first() to be visible
+    44 × locator resolved to hidden <nav aria-label="Primary" class="flex flex-col gap-[2px] p-xs">…</nav>
 
-    at /home/runner/work/socialhub/socialhub/tools/screenshot-tour.mjs:115:12 {
+    at /home/runner/work/socialhub/socialhub/tools/screenshot-tour.mjs:178:63 {
   log: [
-    '  - waiting for navigation until "networkidle"',
-    '    - navigated to "https://socialhub.localhost:3443/dashboard"'
+    `  - waiting for locator('nav[aria-label="Primary"]').first() to be visible`,
+    '    44 × locator resolved to hidden <nav aria-label="Primary" class="flex flex-col gap-[2px] p-xs">…</nav>'
   ],
   name: 'TimeoutError'
 }

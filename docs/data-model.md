@@ -79,7 +79,33 @@ The deferred constraint trigger is the interesting one: it lets the application
 insert the account and its profile in either order inside one transaction, but
 makes a half-provisioned internal identity impossible to commit.
 
-## 5. Growth path
+## 5. The market tables (`0009_market.sql`)
+
+| Table                 | Purpose                  | Key invariants                                                                     |
+| --------------------- | ------------------------ | ---------------------------------------------------------------------------------- |
+| `market_listings`     | what one seller offers   | `reserved_stock <= stock`; an `ACTIVE` listing has stock; price in 100…100 000 000 |
+| `market_orders`       | one seller, one shipment | buyer ≠ seller; `total = subtotal + shipping`; `expires_at` only while unpaid      |
+| `market_order_items`  | the receipt line         | title and price are **snapshots**; one row per (order, listing)                    |
+| `market_order_events` | the timeline             | append-only; `(from_status, to_status, actor)` per move                            |
+
+Three decisions worth defending:
+
+**The hold is a column, not a table.** `reserved_stock` is incremented by a single
+conditional `UPDATE … WHERE stock - reserved_stock >= $n`. A `SELECT` followed by an
+`UPDATE` leaves a window where two buyers both see the last unit; one statement cannot.
+
+**The state machine runs twice.** `can_move_order(from, to)` is a SQL function used by
+the `market_orders_transition` trigger, and the same table is asserted against the
+kernel's `decideOrderMove` in `schema.spec.ts`. If the two ever disagree the test fails,
+so a direct `UPDATE` cannot move an order somewhere the application never would.
+
+**`NO ACTION … DEFERRABLE`, not `RESTRICT`.** A seller leaving deletes their account, their
+listings and their orders in one statement. `RESTRICT` is checked the moment the listing
+row goes, so the cascade order would decide whether that statement is legal. Deferring to
+commit keeps the rule — a receipt line must not outlive its listing — while letting one
+statement remove both.
+
+## 6. Growth path
 
 Current: one Postgres node. The schema is already shard-ready:
 
@@ -93,7 +119,7 @@ To shard: populate the bucket table from `evenBucketDistribution`, point the sha
 router at the new DSNs, and roll out reads before writes. Nothing in the schema
 changes.
 
-## 6. Migration policy
+## 7. Migration policy
 
 `libs/shared/db/src/migrator.ts`:
 

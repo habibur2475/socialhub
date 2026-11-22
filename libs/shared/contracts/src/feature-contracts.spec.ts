@@ -27,6 +27,14 @@ import {
   updateNoteRequestSchema,
   NOTE_MAX_LENGTH,
 } from './tools.js';
+import {
+  checkoutRequestSchema,
+  createListingRequestSchema,
+  listingQuerySchema,
+  orderActionRequestSchema,
+  orderQuerySchema,
+  updateListingRequestSchema,
+} from './market.js';
 
 const option = (label: string, correct: boolean) => ({ label, correct });
 
@@ -339,5 +347,94 @@ describe('tools contracts', () => {
       pinned: false,
     });
     expect(noteQuerySchema.safeParse({ limit: '101' }).success).toBe(false);
+  });
+});
+
+describe('market contracts', () => {
+  it('turns a typed price into exact minor units', () => {
+    expect(
+      createListingRequestSchema.parse({ title: 'Nice kettle', price: '250', stock: 3 }).price,
+    ).toBe(25_000);
+    expect(
+      createListingRequestSchema.parse({ title: 'Nice kettle', price: '250.5', stock: 3 }).price,
+    ).toBe(25_050);
+    // `1.1` is one taka ten paisa, not one paisa: the fraction is padded, not truncated.
+    expect(
+      createListingRequestSchema.parse({ title: 'Nice kettle', price: '1.1', stock: 3 }).price,
+    ).toBe(110);
+  });
+
+  /** A JSON number for money is a double the moment it is parsed; a string is not. */
+  it('refuses a price with more precision than paisa, or one that is not a string', () => {
+    for (const price of ['1.234', '1e5', '-5', '12,00', 250]) {
+      expect(
+        createListingRequestSchema.safeParse({ title: 'Nice kettle', price, stock: 3 }).success,
+      ).toBe(false);
+    }
+  });
+
+  it('refuses a price below one taka and one above the ceiling', () => {
+    expect(
+      createListingRequestSchema.safeParse({ title: 'Nice kettle', price: '0.99', stock: 1 })
+        .success,
+    ).toBe(false);
+    expect(
+      createListingRequestSchema.safeParse({ title: 'Nice kettle', price: '1000001.00', stock: 1 })
+        .success,
+    ).toBe(false);
+  });
+
+  it('lets a draft be created without stock but not an active listing', () => {
+    expect(
+      createListingRequestSchema.safeParse({ title: 'Nice kettle', price: '250', stock: 0 })
+        .success,
+    ).toBe(true);
+    expect(updateListingRequestSchema.safeParse({ status: 'ACTIVE', stock: 0 }).success).toBe(true);
+  });
+
+  it('requires something to change in a listing edit', () => {
+    expect(updateListingRequestSchema.safeParse({}).success).toBe(false);
+    expect(updateListingRequestSchema.safeParse({ price: '199.00' }).success).toBe(true);
+  });
+
+  it('accepts a checkout with a quoted total and refuses a bad address or quantity', () => {
+    const listingId = '0190f3c1-0000-7000-8000-000000000001';
+    const base = {
+      lines: [{ listingId, quantity: 2 }],
+      shippingAddress: '12 Example Road, Khulna 9100',
+      quotedTotalMinor: 56_000,
+    };
+
+    expect(checkoutRequestSchema.safeParse(base).success).toBe(true);
+    expect(checkoutRequestSchema.safeParse({ ...base, lines: [] }).success).toBe(false);
+    expect(checkoutRequestSchema.safeParse({ ...base, shippingAddress: 'short' }).success).toBe(
+      false,
+    );
+    expect(
+      checkoutRequestSchema.safeParse({ ...base, lines: [{ listingId, quantity: 0 }] }).success,
+    ).toBe(false);
+    expect(
+      checkoutRequestSchema.safeParse({ ...base, lines: [{ listingId, quantity: 21 }] }).success,
+    ).toBe(false);
+  });
+
+  it('only accepts the four named order actions', () => {
+    for (const action of ['CANCEL', 'REFUND', 'SHIP', 'DELIVER'] as const) {
+      expect(orderActionRequestSchema.safeParse({ action }).success).toBe(true);
+    }
+    // A status name is not an action: the state machine decides, not the request.
+    expect(orderActionRequestSchema.safeParse({ action: 'SHIPPED' }).success).toBe(false);
+    expect(orderActionRequestSchema.safeParse({ action: 'PAID' }).success).toBe(false);
+  });
+
+  it('coerces the listing and order queries', () => {
+    const listing = listingQuerySchema.parse({});
+    expect(listing).toMatchObject({ limit: 20, mine: false });
+    expect(listingQuerySchema.parse({ mine: 'true' }).mine).toBe(true);
+    expect(listingQuerySchema.safeParse({ limit: '51' }).success).toBe(false);
+
+    expect(orderQuerySchema.parse({}).role).toBe('BUYING');
+    expect(orderQuerySchema.safeParse({ role: 'BOTH' }).success).toBe(false);
+    expect(orderQuerySchema.safeParse({ status: 'LIVE' }).success).toBe(false);
   });
 });

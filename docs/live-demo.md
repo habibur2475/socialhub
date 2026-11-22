@@ -51,6 +51,12 @@ to the API log rather than to a real inbox — that is why the demo accounts exi
 | `/tools/age-calculator` | Exact age, weekday of birth, next birthday                              |
 | `/tools/budget`         | দৈনন্দিন আয়-ব্যয়ের হিসাব — a daily ledger by category                 |
 | `/tools/period`         | পিরিয়ড ট্র্যাকার — cycles and symptoms, on this device only            |
+| `/market`               | What is for sale, with search and a "My listings" tab                   |
+| `/market/new`           | List an item: price typed as a decimal, stock, save as draft or live    |
+| `/market/[slug]`        | One listing: availability, quantity picker, or the seller's edit link   |
+| `/market/cart`          | The cart: goods, one delivery per seller, and the quoted total          |
+| `/market/orders`        | Buying and selling, filtered by state                                   |
+| `/market/orders/[id]`   | One order: totals, address, history, and only the moves you may make    |
 
 ## What to try, in order
 
@@ -65,6 +71,31 @@ to the API log rather than to a real inbox — that is why the demo accounts exi
    **Follow** — the count goes from 2 to 3, and **Following** replaces the button.
 5. Try `/u/ada` while signed out: you are redirected to `/login?next=…`,
    and land back on the profile after signing in.
+
+## Step 7: the market
+
+The market is the first feature where the **database**, not just the service, refuses to
+break a promise.
+
+1. Sign in as **ada** and open `/market/new`. List something: a title, a price like
+   `250.50`, and `3` in stock. Press **Put on sale**.
+2. Open the listing. Note **3 available**. Now, in a second window signed in as
+   **grace**, add one to the cart and place the order with any address of 10+
+   characters. ada's page now says **2 available** while **3 in stock** — the missing
+   unit is _held_, not sold, and it is released if the order is cancelled or expires
+   after 30 minutes.
+3. Put a second item from **linus** in grace's cart as well. The cart shows **two**
+   delivery charges, and placing the order returns **two orders** — one per seller,
+   because one parcel and one payout cannot belong to two people.
+4. As **linus**, open `/market/orders?role=SELLING`. The paid order offers **Mark as
+   shipped** and **Refund**; the buyer is offered nothing on a paid order. The refund
+   is performed by the platform, not the seller, which is why the timeline records it
+   as `platform`.
+5. A price that changes between the cart and the checkout is refused with `409` — the
+   total you were shown travels with the request and is compared, so nobody is charged
+   a number they did not see.
+6. Try deleting a listing that has an order: `409`, and the advice is to withdraw it
+   instead. Deleting the draft you never published works.
 
 ## Step 6: notifications, quiz and forum
 

@@ -36,6 +36,24 @@ await mkdir(OUT, { recursive: true });
 const browser = await chromium.launch({
   args: ['--host-resolver-rules=MAP socialhub.localhost 127.0.0.1', '--ignore-certificate-errors'],
 });
+
+/**
+ * Waits for a page to be usable rather than for the network to fall idle.
+ *
+ * `networkidle` is the obvious choice and it is wrong here: the notification stream is a
+ * long-lived `text/event-stream` response, so the network is *never* idle on a signed-in
+ * page. Waiting for it means waiting forever — which is exactly what happened, as a 30s
+ * timeout on the first reload after signing in.
+ *
+ * `domcontentloaded` plus a short settle is the honest signal: the HTML is parsed, React
+ * has started, and the per-screen assertion that follows is what actually decides whether
+ * the content rendered.
+ */
+const open = async (page, url) => {
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(600);
+};
+
 const failures = [];
 let shot = 0;
 
@@ -46,7 +64,7 @@ let shot = 0;
  * whatever is on screen would happily record a spinner or an error banner.
  */
 const capture = async (page, name, path, expect) => {
-  await page.goto(`${WEB}${path}`, { waitUntil: 'networkidle' });
+  await open(page, `${WEB}${path}`);
 
   let problem = null;
 
@@ -94,7 +112,7 @@ await capture(anon, 'register', '/register', 'text=Create');
 
 // ----------------------------------------------------------------- signed in
 const page = await desktop.newPage();
-await page.goto(`${WEB}/login`, { waitUntil: 'networkidle' });
+await open(page, `${WEB}/login`);
 await page.getByLabel(/email/i).fill(EMAIL);
 await page.getByLabel(/password/i).fill(PASSWORD);
 await page.getByRole('button', { name: /sign in/i }).click();
@@ -112,7 +130,8 @@ const stored = new Set(sessionCookies.map((cookie) => cookie.name));
 for (const name of ['__Host-sh_rt', '__Host-sh_csrf']) {
   if (!stored.has(name)) failures.push(`session: the browser refused the ${name} cookie`);
 }
-await page.reload({ waitUntil: 'networkidle' });
+await page.reload({ waitUntil: 'domcontentloaded' });
+await page.waitForTimeout(1500);
 if (new URL(page.url()).pathname.startsWith('/login')) {
   failures.push('session: a reload after signing in fell back to the login form');
 }
@@ -145,12 +164,13 @@ await capture(page, 'settings', '/settings/profile', 'text=Display name');
 
 // -------------------------------------------------------------------- mobile
 const mobilePage = await phone.newPage();
-await mobilePage.goto(`${WEB}/login`, { waitUntil: 'networkidle' });
+await open(mobilePage, `${WEB}/login`);
 await mobilePage.getByLabel(/email/i).fill(EMAIL);
 await mobilePage.getByLabel(/password/i).fill(PASSWORD);
 await mobilePage.getByRole('button', { name: /sign in/i }).click();
 await mobilePage.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20_000 });
-await mobilePage.reload({ waitUntil: 'networkidle' });
+await mobilePage.reload({ waitUntil: 'domcontentloaded' });
+await mobilePage.waitForTimeout(1500);
 if (new URL(mobilePage.url()).pathname.startsWith('/login')) {
   failures.push('session (mobile): a reload after signing in fell back to the login form');
 }

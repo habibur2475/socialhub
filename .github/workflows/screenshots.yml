@@ -123,13 +123,21 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/socialhub
         run: node tools/seed-demo.mjs
 
+      # Deliberately not fatal: whatever rendered should still reach the branch, and the
+      # tour's own report is the only way to see *which* screen misbehaved on a runner whose
+      # logs are not always downloadable.
       - name: Capture the tour
+        id: tour
+        continue-on-error: true
         env:
           WEB_URL: http://localhost:3000
           SHOT_DIR: docs/screenshots
-        run: node tools/screenshot-tour.mjs
+        run: |
+          set -o pipefail
+          node tools/screenshot-tour.mjs 2>&1 | tee docs/screenshots/tour.log
 
       - name: Keep the screenshots in the branch
+        if: always()
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -140,6 +148,12 @@ jobs:
             git commit -m 'docs(screenshots): refresh the tour from CI'
             git push
           fi
+
+      - name: Fail if a screen did not render
+        if: steps.tour.outcome == 'failure'
+        run: |
+          echo 'The tour reported a failure; see docs/screenshots/tour.log'
+          exit 1
 
       - name: Upload the images
         if: always()

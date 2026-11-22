@@ -7,6 +7,12 @@ import {
 } from './quiz.js';
 import { createThreadRequestSchema, threadQuerySchema } from './forum.js';
 import {
+  createJobRequestSchema,
+  createProposalRequestSchema,
+  jobActionRequestSchema,
+  jobQuerySchema,
+} from './work.js';
+import {
   CSRF_COOKIE_NAME,
   CSRF_HEADER_NAME,
   REFRESH_COOKIE_NAME,
@@ -466,5 +472,121 @@ describe('session cookies', () => {
 
   it('names the CSRF header something a cross-site form cannot set', () => {
     expect(CSRF_HEADER_NAME).toBe('x-csrf-token');
+  });
+});
+
+/**
+ * Work contracts.
+ *
+ * The interesting cases are the money ones: a budget that must never reach the service as a
+ * float, and an award that must be impossible without the plan it is paying for.
+ */
+describe('work contracts', () => {
+  const iso = '2027-06-01T00:00:00.000Z';
+
+  it('parses a budget as exact minor units, never as a float', () => {
+    const parsed = createJobRequestSchema.parse({
+      title: 'Write a careful report',
+      budget: '1250.50',
+      deadline: iso,
+    });
+
+    expect(parsed.budget).toBe(125_050);
+    expect(Number.isInteger(parsed.budget)).toBe(true);
+
+    // The class of bug this prevents, stated with numbers above this schema's floor: as
+    // doubles, 1.1 * 3 is 3.3000000000000003 and 0.1 + 0.2 is 0.30000000000000004. Parsed
+    // from the string, the same amounts are exact integers.
+    const minor = (amount: string): number =>
+      createJobRequestSchema.parse({ title: 'a job title', budget: amount, deadline: iso }).budget;
+
+    expect(minor('125.10')).toBe(12_510);
+    expect(minor('50.05')).toBe(5_005);
+    expect(minor('1000.99')).toBe(100_099);
+    expect(Number.isInteger(minor('1250.50'))).toBe(true);
+
+    // And the arithmetic that would be wrong on floats, done on the parsed values:
+    expect((minor('50.10') * 3) / 100).toBeCloseTo(150.3, 10);
+    expect(1.1 * 3).not.toBe(3.3);
+  });
+
+  it('refuses more precision than a paisa, an exponent, and a price below the floor', () => {
+    for (const budget of ['10.999', '1e5', '+250', 'abc']) {
+      expect(
+        createJobRequestSchema.safeParse({ title: 'a job title', budget, deadline: iso }).success,
+      ).toBe(false);
+    }
+
+    expect(
+      createJobRequestSchema.safeParse({ title: 'a job title', budget: '49.99', deadline: iso })
+        .success,
+    ).toBe(false);
+  });
+
+  it('rejects an unknown field outright, so a caller cannot set its own status', () => {
+    const result = createJobRequestSchema.safeParse({
+      title: 'a job title',
+      budget: '100',
+      deadline: iso,
+      clientId: 'someone-else',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('defaults a job to open with the general category', () => {
+    const parsed = createJobRequestSchema.parse({
+      title: 'a job title',
+      budget: '100',
+      deadline: iso,
+    });
+    expect(parsed).toMatchObject({
+      status: 'OPEN',
+      category: 'general',
+      currency: 'BDT',
+      description: '',
+    });
+  });
+
+  it('requires an award to carry both the proposal and the plan', () => {
+    const withoutProposal = jobActionRequestSchema.safeParse({
+      action: 'AWARD',
+      milestones: [{ title: 'First part', amount: '100' }],
+    });
+    expect(withoutProposal.success).toBe(false);
+
+    const withoutPlan = jobActionRequestSchema.safeParse({
+      action: 'AWARD',
+      proposalId: '2f1c9a3e-6d4b-4f1a-9c2e-8b7a5d3e1f00',
+    });
+    expect(withoutPlan.success).toBe(false);
+
+    const complete = jobActionRequestSchema.safeParse({
+      action: 'AWARD',
+      proposalId: '2f1c9a3e-6d4b-4f1a-9c2e-8b7a5d3e1f00',
+      milestones: [{ title: 'First part', amount: '500' }],
+    });
+    expect(complete.success).toBe(true);
+  });
+
+  it('does not demand a plan for the actions that have none', () => {
+    for (const action of ['START', 'COMPLETE', 'CANCEL'] as const) {
+      expect(jobActionRequestSchema.safeParse({ action }).success).toBe(true);
+    }
+  });
+
+  it('coerces the job board query and defaults to the open board', () => {
+    const query = jobQuerySchema.parse({});
+    expect(query).toMatchObject({ limit: 20, openOnly: true, mine: false });
+    expect(jobQuerySchema.parse({ openOnly: 'false' }).openOnly).toBe(false);
+    expect(jobQuerySchema.safeParse({ limit: '51' }).success).toBe(false);
+  });
+
+  it('refuses a cover letter that says nothing', () => {
+    const result = createProposalRequestSchema.safeParse({
+      bid: '100',
+      coverLetter: 'I can do it',
+      deliveryDays: 7,
+    });
+    expect(result.success).toBe(false);
   });
 });

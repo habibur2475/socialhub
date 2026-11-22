@@ -121,7 +121,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     href: '/work',
     icon: Briefcase,
     description: 'Freelance jobs, contracts, and milestones.',
-    status: 'planned',
+    status: 'live',
   },
   {
     key: 'stock',

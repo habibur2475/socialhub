@@ -495,8 +495,11 @@ if ((adaContracts.body?.items ?? []).length === 0) {
         action: 'AWARD',
         proposalId: chosen.id,
         milestones: [
-          { title: 'First draft', amount: (half / 100).toFixed(2) },
-          { title: 'Final copy', amount: ((chosen.bidMinor - half) / 100).toFixed(2) },
+          { title: 'Rough cut', amount: (half / 100).toFixed(2) },
+          {
+            title: 'Finished cut with captions',
+            amount: ((chosen.bidMinor - half) / 100).toFixed(2),
+          },
         ],
       },
     });

@@ -97,7 +97,7 @@ export const JobBoard = (): React.JSX.Element => {
       href={href}
       aria-current={view === key ? 'page' : undefined}
       className={cn(
-        'flex h-9 items-center rounded-full px-sm text-small transition-colors',
+        'flex h-9 shrink-0 items-center whitespace-nowrap rounded-full px-sm text-small transition-colors',
         view === key ? 'bg-primary/10 font-medium text-primary' : 'text-muted hover:bg-raised',
       )}
     >
@@ -117,7 +117,7 @@ export const JobBoard = (): React.JSX.Element => {
   return (
     <div className="flex flex-col gap-lg">
       <div className="flex flex-wrap items-center gap-sm">
-        <nav className="flex items-center gap-xs" aria-label="Job views">
+        <nav className="flex items-center gap-xs overflow-x-auto pb-xs" aria-label="Job views">
           {tab('board', 'Open work', '/work')}
           {tab('posted', 'Jobs I posted', '/work?mine=true')}
           {tab('bids', 'My proposals', '/work?view=bids')}
@@ -126,7 +126,7 @@ export const JobBoard = (): React.JSX.Element => {
               about which page you are on. */}
           <Link
             href="/work/contracts"
-            className="flex h-9 items-center rounded-full px-sm text-small text-muted transition-colors hover:bg-raised"
+            className="flex h-9 shrink-0 items-center whitespace-nowrap rounded-full px-sm text-small text-muted transition-colors hover:bg-raised"
           >
             Contracts
           </Link>

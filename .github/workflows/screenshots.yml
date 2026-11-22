@@ -1,0 +1,154 @@
+# ---------------------------------------------------------------------------
+# Screenshot tour.
+#
+# Runs the whole stack — Postgres, the API, the built web app — seeds the demo
+# data, and walks the site with a real Chromium, writing one PNG per screen into
+# `docs/screenshots/`. The images are uploaded as a build artifact *and* pushed
+# back to the branch, so they are readable straight from GitHub without
+# downloading anything.
+#
+# This exists because a screenshot is the only honest answer to "what does it
+# look like?" for someone who is not going to run the stack locally.
+# ---------------------------------------------------------------------------
+
+name: Screenshots
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['arena/**']
+    paths:
+      - 'apps/web/src/**'
+      - 'libs/shared/**'
+      - 'tools/screenshot-tour.mjs'
+      - '.github/workflows/screenshots.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PNPM_VERSION: 9.15.4
+  NODE_VERSION: 22.15.0
+
+jobs:
+  capture:
+    name: Capture every screen
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Provision the database
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+          APP_PASSWORD: ci_password
+        run: pnpm --filter @socialhub/db run setup
+
+      - name: Build
+        run: pnpm -r build
+
+      - name: Start the API
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/socialhub
+          API_DATABASE_URL: postgres://postgres:postgres@localhost:5432/socialhub
+          JWT_ACCESS_SECRET: screenshot-access-secret-at-least-32-characters
+          JWT_REFRESH_SECRET: screenshot-refresh-secret-at-least-32-characters
+          CACHE_DRIVER: memory
+          LOG_LEVEL: warn
+          PORT: '4000'
+          NODE_ENV: production
+        run: |
+          nohup node apps/api/dist/main.js > /tmp/api.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:4000/health/ready > /dev/null; then
+              echo "API ready"; exit 0
+            fi
+            sleep 2
+          done
+          echo "API did not start"; tail -50 /tmp/api.log; exit 1
+
+      - name: Start the web app
+        env:
+          API_INTERNAL_URL: http://localhost:4000
+          NODE_ENV: production
+        run: |
+          (cd apps/web && nohup ./node_modules/.bin/next start --port 3000 --hostname 0.0.0.0 > /tmp/web.log 2>&1 &)
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:3000/login > /dev/null; then
+              echo "Web ready"; exit 0
+            fi
+            sleep 2
+          done
+          echo "Web did not start"; tail -50 /tmp/web.log; exit 1
+
+      - name: Seed the demo data
+        env:
+          API_BASE: http://localhost:4000
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/socialhub
+        run: node tools/seed-demo.mjs
+
+      - name: Capture the tour
+        env:
+          WEB_URL: http://localhost:3000
+          SHOT_DIR: docs/screenshots
+        run: node tools/screenshot-tour.mjs
+
+      - name: Keep the screenshots in the branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A docs/screenshots
+          if git diff --quiet --cached; then
+            echo "Screenshots unchanged"
+          else
+            git commit -m 'docs(screenshots): refresh the tour from CI'
+            git push
+          fi
+
+      - name: Upload the images
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: docs/screenshots
+          retention-days: 30
+
+      - name: Logs on failure
+        if: failure()
+        run: |
+          echo '--- api ---'; tail -80 /tmp/api.log || true
+          echo '--- web ---'; tail -80 /tmp/web.log || true

@@ -21,17 +21,23 @@
     "db:setup": "pnpm --filter @socialhub/db setup",
     "db:migrate": "pnpm --filter @socialhub/db migrate",
     "db:status": "pnpm --filter @socialhub/db status",
-    "check:budget": "node tools/check-bundle-budget.mjs"
+    "check:budget": "node tools/check-bundle-budget.mjs",
+    "seed:demo": "node tools/seed-demo.mjs",
+    "shots": "node tools/screenshot-tour.mjs"
   },
   "devDependencies": {
     "@types/cookie-parser": "1.4.9",
     "@types/node": "22.15.30",
     "prettier": "3.6.2",
-    "typescript": "5.9.2"
+    "typescript": "5.9.2",
+    "playwright": "1.65.1"
   },
   "pnpm": {
     "overrides": {
       "typescript": "5.9.2"
     }
+  },
+  "dependencies": {
+    "pg": "8.16.3"
   }
 }

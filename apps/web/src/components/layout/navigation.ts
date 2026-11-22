@@ -113,7 +113,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     href: '/market',
     icon: ShoppingBag,
     description: 'Products, sellers, and order tracking.',
-    status: 'planned',
+    status: 'live',
   },
   {
     key: 'work',

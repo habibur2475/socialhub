@@ -22,6 +22,7 @@ import { ForumModule } from './modules/forum/forum.module.js';
 import { MessagingModule } from './modules/messaging/messaging.module.js';
 import { BlogModule } from './modules/blog/blog.module.js';
 import { ToolsModule } from './modules/tools/tools.module.js';
+import { MarketModule } from './modules/market/market.module.js';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { ToolsModule } from './modules/tools/tools.module.js';
     MessagingModule,
     BlogModule,
     ToolsModule,
+    MarketModule,
     HealthModule,
   ],
   providers: [

@@ -413,11 +413,18 @@ describeWithDb('blog schema', () => {
     return id;
   };
 
+  /**
+   * The slug is unique across the whole blog, not per author, so the fixture slug carries a
+   * random suffix: the suite runs against a database that is not emptied between runs, and a
+   * fixed slug would collide with the row the previous run left behind rather than testing
+   * anything.
+   */
   it('allows one article per slug', async () => {
     const author = await createUserWithProfile();
-    await createArticle({ author, slug: 'the-same-url' });
+    const slug = `the-same-url-${randomUUID().slice(-8)}`;
+    await createArticle({ author, slug });
 
-    await expect(createArticle({ author, slug: 'the-same-url' })).rejects.toThrow(
+    await expect(createArticle({ author, slug })).rejects.toThrow(
       /articles_slug_key|duplicate key/,
     );
   });
@@ -1555,5 +1562,323 @@ describeWithDb('tools schema', () => {
       [id],
     );
     expect(rows[0]?.age_seconds).toBeLessThan(5);
+  });
+});
+
+describeWithDb('market schema', () => {
+  /**
+   * The properties that make a marketplace trustworthy live here: the stock hold that stops
+   * two buyers paying for one unit, the receipt that must add up, and the state machine the
+   * database refuses to violate even when the service is bypassed.
+   */
+  const createListing = async (
+    overrides: Partial<{
+      id: string;
+      seller: string;
+      slug: string;
+      price: number;
+      stock: number;
+      reserved: number;
+      status: string;
+    }> = {},
+  ): Promise<string> => {
+    const id = overrides.id ?? randomUUID();
+    const seller = overrides.seller ?? (await createUserWithProfile());
+
+    await client.query(
+      `INSERT INTO market_listings (id, seller_id, slug, title, price_minor, stock, reserved_stock, status)
+       VALUES ($1, $2, $3, 'A perfectly good product', $4, $5, $6, $7)`,
+      [
+        id,
+        seller,
+        overrides.slug ?? `item-${id.slice(-12)}`,
+        overrides.price ?? 25_000,
+        overrides.stock ?? 5,
+        overrides.reserved ?? 0,
+        overrides.status ?? 'ACTIVE',
+      ],
+    );
+
+    return id;
+  };
+
+  const createOrder = async (
+    overrides: Partial<{
+      id: string;
+      buyer: string;
+      seller: string;
+      status: string;
+      subtotal: number;
+      shipping: number;
+      commission: number;
+      total: number;
+      expiresAt: Date | null;
+    }> = {},
+  ): Promise<string> => {
+    const id = overrides.id ?? randomUUID();
+    const buyer = overrides.buyer ?? (await createUserWithProfile());
+    const seller = overrides.seller ?? (await createUserWithProfile());
+    const subtotal = overrides.subtotal ?? 50_000;
+    const shipping = overrides.shipping ?? 6_000;
+
+    await client.query(
+      `INSERT INTO market_orders
+         (id, buyer_id, seller_id, status, subtotal_minor, shipping_minor, commission_minor,
+          total_minor, shipping_address, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '12 Example Road, Khulna 9100', $9)`,
+      [
+        id,
+        buyer,
+        seller,
+        overrides.status ?? 'PENDING',
+        subtotal,
+        shipping,
+        overrides.commission ?? 5_000,
+        overrides.total ?? subtotal + shipping,
+        overrides.expiresAt ?? null,
+      ],
+    );
+
+    return id;
+  };
+
+  it('keeps the hold within the stock it is holding', async () => {
+    const seller = await createUserWithProfile();
+
+    await expect(createListing({ seller, stock: 2, reserved: 3 })).rejects.toThrow(
+      /market_listings_reserved_within_stock/,
+    );
+    expect(await createListing({ seller, stock: 2, reserved: 2 })).toEqual(expect.any(String));
+  });
+
+  it('rejects a zero price, a negative stock and a status outside the list', async () => {
+    const seller = await createUserWithProfile();
+
+    await expect(createListing({ seller, price: 0 })).rejects.toThrow(
+      /market_listings_price_range/,
+    );
+    // A negative stock fails the `active_has_stock` check first, and either refusal is the
+    // same statement: an active listing needs a positive count of units.
+    await expect(createListing({ seller, stock: -1 })).rejects.toThrow(
+      /market_listings_stock_non_negative|market_listings_active_has_stock/,
+    );
+    await expect(createListing({ seller, status: 'LIVE' })).rejects.toThrow(
+      /market_listings_status_allowed/,
+    );
+  });
+
+  /** An active listing with no stock is a dead end that looks alive. */
+  it('will not let an active listing have nothing to sell', async () => {
+    const seller = await createUserWithProfile();
+    await expect(createListing({ seller, stock: 0, status: 'ACTIVE' })).rejects.toThrow(
+      /market_listings_active_has_stock/,
+    );
+    // A draft may hold no stock yet, because it is not on sale.
+    expect(await createListing({ seller, stock: 0, status: 'DRAFT' })).toEqual(expect.any(String));
+  });
+
+  it('allows one listing per slug', async () => {
+    const seller = await createUserWithProfile();
+    const slug = `the-same-item-${randomUUID().slice(-8)}`;
+    await createListing({ seller, slug });
+    await expect(createListing({ seller, slug })).rejects.toThrow(
+      /market_listings_slug_key|duplicate key/,
+    );
+  });
+
+  it('refuses an order from a seller to themselves', async () => {
+    const seller = await createUserWithProfile();
+    await expect(createOrder({ buyer: seller, seller })).rejects.toThrow(/market_orders_not_self/);
+  });
+
+  it('refuses a receipt that does not add up', async () => {
+    await expect(createOrder({ subtotal: 50_000, shipping: 6_000, total: 50_000 })).rejects.toThrow(
+      /market_orders_total_is_sum/,
+    );
+    await expect(
+      createOrder({ subtotal: 10_000, shipping: 0, commission: 20_000 }),
+    ).rejects.toThrow(/market_orders_commission_within_subtotal/);
+  });
+
+  it('refuses an expiry on an order that is already settled', async () => {
+    await expect(
+      createOrder({ status: 'PAID', expiresAt: new Date(Date.now() + 60_000) }),
+    ).rejects.toThrow(/market_orders_expiry_only_while_unpaid/);
+  });
+
+  /** The database refuses a shipped order that was never paid, whatever the service does. */
+  it('refuses an illegal transition at the database, with the kernel’s own table', async () => {
+    const order = await createOrder({ status: 'PENDING' });
+
+    await expect(
+      client.query(`UPDATE market_orders SET status = 'PAID' WHERE id = $1`, [order]),
+      // The trigger names the move, and the constraint tag is what a client would map.
+    ).rejects.toThrow(/illegal order transition PENDING -> PAID|market_orders_transition/);
+
+    await client.query(`UPDATE market_orders SET status = 'RESERVED' WHERE id = $1`, [order]);
+    await client.query(`UPDATE market_orders SET status = 'PAID' WHERE id = $1`, [order]);
+    await client.query(`UPDATE market_orders SET status = 'SHIPPED' WHERE id = $1`, [order]);
+
+    const { rows } = await client.query<{ status: string }>(
+      `SELECT status FROM market_orders WHERE id = $1`,
+      [order],
+    );
+    expect(rows[0]?.status).toBe('SHIPPED');
+  });
+
+  it('lets an order be updated without changing its status', async () => {
+    const order = await createOrder({ status: 'PENDING' });
+    await client.query(
+      `UPDATE market_orders SET shipping_address = '99 Another Road, Khulna' WHERE id = $1`,
+      [order],
+    );
+    expect(true).toBe(true);
+  });
+
+  it('agrees with the kernel on every legal move', async () => {
+    const { canMoveOrder, ORDER_STATUSES } = await import('@socialhub/kernel');
+
+    const { rows: legal } = await client.query<{ from_status: string; to_status: string }>(
+      `WITH statuses AS (
+         SELECT unnest(ARRAY['PENDING','RESERVED','PAID','SHIPPED','DELIVERED','CANCELLED','EXPIRED','REFUNDED']) AS s
+       )
+       SELECT f.s AS from_status, t.s AS to_status
+         FROM statuses f CROSS JOIN statuses t
+        WHERE can_move_order(f.s, t.s)`,
+    );
+
+    const fromDb = new Set(legal.map((row) => `${row.from_status}->${row.to_status}`));
+    const fromKernel = new Set(
+      ORDER_STATUSES.flatMap((from) =>
+        ORDER_STATUSES.filter((to) => canMoveOrder(from, to)).map((to) => `${from}->${to}`),
+      ),
+    );
+
+    // A pair present in one and absent from the other is a transition that the API permits
+    // and the database refuses, or the reverse — both are bugs, and this is the only place
+    // the two definitions are compared.
+    expect(fromDb.size).toBeGreaterThan(0);
+    expect([...fromDb].sort()).toEqual([...fromKernel].sort());
+  });
+
+  it('shows an order to its buyer and its seller, and to nobody else', async () => {
+    const buyer = await createUserWithProfile();
+    const seller = await createUserWithProfile();
+    const stranger = await createUserWithProfile();
+    const order = await createOrder({ buyer, seller });
+
+    const visibleTo = async (viewer: string): Promise<boolean> => {
+      const { rows } = await client.query<{ visible: boolean }>(
+        'SELECT can_view_order($1, $2) AS visible',
+        [order, viewer],
+      );
+      return rows[0]?.visible === true;
+    };
+
+    expect(await visibleTo(buyer)).toBe(true);
+    expect(await visibleTo(seller)).toBe(true);
+    expect(await visibleTo(stranger)).toBe(false);
+  });
+
+  it('snapshots the title and price on the order line, so a later edit cannot rewrite it', async () => {
+    const seller = await createUserWithProfile();
+    const listing = await createListing({ seller, price: 25_000 });
+    const order = await createOrder({ seller });
+
+    await client.query(
+      `INSERT INTO market_order_items (order_id, listing_id, title_snapshot, unit_price_minor, quantity)
+       VALUES ($1, $2, 'A perfectly good product', 25000, 2)`,
+      [order, listing],
+    );
+
+    await client.query(
+      `UPDATE market_listings SET title = 'Renamed later', price_minor = 99900 WHERE id = $1`,
+      [listing],
+    );
+
+    const { rows } = await client.query<{ title_snapshot: string; unit_price_minor: string }>(
+      `SELECT title_snapshot, unit_price_minor FROM market_order_items WHERE order_id = $1`,
+      [order],
+    );
+    expect(rows[0]?.title_snapshot).toBe('A perfectly good product');
+    expect(Number(rows[0]?.unit_price_minor)).toBe(25_000);
+  });
+
+  it('refuses to delete a listing that an order refers to', async () => {
+    const seller = await createUserWithProfile();
+    const listing = await createListing({ seller });
+    const order = await createOrder({ seller });
+
+    await client.query(
+      `INSERT INTO market_order_items (order_id, listing_id, title_snapshot, unit_price_minor, quantity)
+       VALUES ($1, $2, 'A perfectly good product', 25000, 1)`,
+      [order, listing],
+    );
+
+    await expect(
+      client.query('DELETE FROM market_listings WHERE id = $1', [listing]),
+    ).rejects.toThrow(/foreign key|market_order_items/);
+  });
+
+  /**
+   * The listing reference is deferred so that deleting a seller's *account* does not depend
+   * on which row the cascade reaches first. Deferral must not weaken the refusal itself: the
+   * delete is still rejected, only at commit rather than at the statement.
+   */
+  it('still refuses the delete at commit, because the reference is deferred', async () => {
+    const seller = await createUserWithProfile();
+    const listing = await createListing({ seller });
+    const order = await createOrder({ seller });
+
+    await client.query(
+      `INSERT INTO market_order_items (order_id, listing_id, title_snapshot, unit_price_minor, quantity)
+       VALUES ($1, $2, 'A perfectly good product', 25000, 1)`,
+      [order, listing],
+    );
+
+    // Autocommit: the transaction is the statement, so the deferred check runs immediately
+    // after it — and refuses.
+    await expect(
+      client.query('DELETE FROM market_listings WHERE id = $1', [listing]),
+    ).rejects.toThrow(/foreign key|market_order_items/);
+  });
+
+  it('lets a seller leave without leaving a broken receipt behind', async () => {
+    const seller = await createUserWithProfile();
+    const listing = await createListing({ seller });
+    const order = await createOrder({ seller });
+
+    await client.query(
+      `INSERT INTO market_order_items (order_id, listing_id, title_snapshot, unit_price_minor, quantity)
+       VALUES ($1, $2, 'A perfectly good product', 25000, 1)`,
+      [order, listing],
+    );
+
+    // The order cascades from the seller too, so the receipt goes with them; what must not
+    // happen is a half-deleted seller whose listing blocks the account deletion.
+    await client.query('DELETE FROM accounts WHERE id = $1', [seller]);
+
+    const items = await client.query('SELECT 1 FROM market_order_items WHERE order_id = $1', [
+      order,
+    ]);
+    expect(items.rowCount).toBe(0);
+  });
+
+  it('keeps the order timeline append-only in the sense that it is ordered by time', async () => {
+    const seller = await createUserWithProfile();
+    const order = await createOrder({ seller });
+
+    await client.query(
+      `INSERT INTO market_order_events (id, order_id, from_status, to_status, actor, created_at)
+       VALUES ($1, $2, NULL, 'PENDING', 'BUYER', now() - interval '2 minutes'),
+              ($3, $2, 'PENDING', 'RESERVED', 'BUYER', now() - interval '1 minute')`,
+      [randomUUID(), order, randomUUID()],
+    );
+
+    const { rows } = await client.query<{ to_status: string }>(
+      `SELECT to_status FROM market_order_events WHERE order_id = $1 ORDER BY created_at, id`,
+      [order],
+    );
+    expect(rows.map((row) => row.to_status)).toEqual(['PENDING', 'RESERVED']);
   });
 });

@@ -117,7 +117,7 @@ export const JobBoard = (): React.JSX.Element => {
   return (
     <div className="flex flex-col gap-lg">
       <div className="flex flex-wrap items-center gap-sm">
-        <nav className="flex items-center gap-xs overflow-x-auto pb-xs" aria-label="Job views">
+        <nav className="flex flex-wrap items-center gap-xs sm:flex-nowrap" aria-label="Job views">
           {tab('board', 'Open work', '/work')}
           {tab('posted', 'Jobs I posted', '/work?mine=true')}
           {tab('bids', 'My proposals', '/work?view=bids')}

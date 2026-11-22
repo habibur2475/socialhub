@@ -88,9 +88,11 @@ jobs:
           JWT_ACCESS_SECRET: screenshot-access-secret-at-least-32-characters
           JWT_REFRESH_SECRET: screenshot-refresh-secret-at-least-32-characters
           CACHE_DRIVER: memory
-          LOG_LEVEL: warn
+          LOG_LEVEL: info
           PORT: '4000'
-          NODE_ENV: production
+          # `test`, not `production`: this is a throwaway runner, and production
+          # correctly refuses the in-memory cache and the log mail transport.
+          NODE_ENV: test
         run: |
           nohup node apps/api/dist/main.js > /tmp/api.log 2>&1 &
           for i in $(seq 1 60); do

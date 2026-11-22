@@ -23,21 +23,31 @@
   ! orders: expected text=Hand-thrown clay kettle
   ok orders
   ok settings
-node:internal/modules/run_main:122
-    triggerUncaughtException(
-    ^
+  ok post
+  ok forum-thread
+  ok forum-new
+  ok quiz
+  ok quiz-new
+  ok conversation
+  ok message-new
+  ok blog-new
+  ok order
+  ok listing-edit
+  ok calculator
+  ok pdf-editor
+  ok period
+  ok qr-code
+  ok note
+  ok forgot-password
+  ok reset-password
+  ok verify-email
+  ok offline
+  ok mobile-feed
+  ok mobile-market
+  ok mobile-tools
 
-locator.waitFor: Timeout 20000ms exceeded.
-Call log:
-  - waiting for locator('nav[aria-label="Primary"]').first() to be visible
-    44 × locator resolved to hidden <nav aria-label="Primary" class="flex flex-col gap-[2px] p-xs">…</nav>
+44 screenshots written to docs/screenshots
+2 screen(s) did not render what was expected:
 
-    at /home/runner/work/socialhub/socialhub/tools/screenshot-tour.mjs:178:63 {
-  log: [
-    `  - waiting for locator('nav[aria-label="Primary"]').first() to be visible`,
-    '    44 × locator resolved to hidden <nav aria-label="Primary" class="flex flex-col gap-[2px] p-xs">…</nav>'
-  ],
-  name: 'TimeoutError'
-}
-
-Node.js v22.15.0
+ - feed (/): expected text=Ada Lovelace
+ - orders (/market/orders): expected text=Hand-thrown clay kettle

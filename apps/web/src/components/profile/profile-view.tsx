@@ -83,8 +83,8 @@ export const ProfileView = ({ username }: { readonly username: string }): React.
   if (state.kind === 'missing') {
     return (
       <div className="flex flex-col gap-xs">
-        <h1 className="text-h2 font-semibold text-text">Profile not found</h1>
-        <p className="text-body text-text-muted">
+        <h1 className="text-subheading font-semibold text-text">Profile not found</h1>
+        <p className="text-body text-muted">
           This account does not exist, or it is not available to you.
         </p>
       </div>

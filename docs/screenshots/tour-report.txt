@@ -1,0 +1,46 @@
+  ok marketing
+  ok login
+  ok register
+  ok signed in as ada (2 cookies stored)
+  ok feed
+  ok profile
+  ok notifications
+  ok quiz-library
+  ok forum
+  ok messages
+  ok blog
+  ok article
+  ok tools
+  ok tool-budget
+  ok tool-age
+  ok notes
+  ok market
+  ok market-listing
+  ok market-new
+  ok market-cart
+  ok orders
+  ok settings
+  ok post
+  ok forum-thread
+  ok forum-new
+  ok quiz
+  ok quiz-new
+  ok conversation
+  ok message-new
+  ok blog-new
+  ok order
+  ok listing-edit
+  ok calculator
+  ok pdf-editor
+  ok period
+  ok qr-code
+  ok note
+  ok forgot-password
+  ok reset-password
+  ok verify-email
+  ok offline
+  ok mobile-feed
+  ok mobile-market
+  ok mobile-tools
+
+43 screenshots written to docs/screenshots

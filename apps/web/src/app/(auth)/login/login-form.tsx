@@ -37,8 +37,8 @@ const GUIDANCE: Partial<Record<string, string>> = {
  * campaign borrows a real domain's login page.
  */
 const safeNext = (next: string | undefined): string => {
-  if (next === undefined) return '/dashboard';
-  if (!next.startsWith('/') || next.startsWith('//')) return '/dashboard';
+  if (next === undefined) return '/feed';
+  if (!next.startsWith('/') || next.startsWith('//')) return '/feed';
   return next;
 };
 

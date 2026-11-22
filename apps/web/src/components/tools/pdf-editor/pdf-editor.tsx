@@ -201,7 +201,7 @@ export const PdfEditor = (): React.JSX.Element => {
         <label
           className={cn(
             'flex min-h-[260px] cursor-pointer flex-col items-center justify-center gap-sm',
-            'rounded-xl border-2 border-dashed border-border-strong/40 p-lg text-center',
+            'rounded-lg border-2 border-dashed border-border-strong/40 p-lg text-center',
             'transition-colors hover:border-primary/50 hover:bg-primary/5',
           )}
         >
@@ -317,7 +317,7 @@ export const PdfEditor = (): React.JSX.Element => {
                   className="flex aspect-[1/1.414] w-full items-center justify-center rounded-md bg-raised"
                 >
                   <span
-                    className="text-h3 font-semibold text-muted"
+                    className="text-body font-semibold text-muted"
                     style={{ transform: `rotate(${page.rotation}deg)` }}
                   >
                     {index + 1}

@@ -52,7 +52,7 @@ export const ToolShell = ({
       <header className="flex flex-col gap-sm">
         <Link
           href="/tools"
-          className="flex w-fit items-center gap-xs text-small text-muted transition-colors hover:text-foreground"
+          className="flex w-fit items-center gap-xs text-small text-muted transition-colors hover:text-text"
         >
           <ArrowLeft aria-hidden className="size-4" />
           All tools

@@ -154,7 +154,7 @@ export const ArticleView = ({ idOrSlug }: { readonly idOrSlug: string }): React.
           ) : null}
         </div>
 
-        <h1 className="text-h1 font-semibold leading-tight">{article.title}</h1>
+        <h1 className="text-heading font-semibold leading-tight">{article.title}</h1>
 
         <p className="flex flex-wrap items-center gap-xs text-small text-muted">
           <Link href={`/u/${article.author.username}`} className="hover:underline">
@@ -187,7 +187,7 @@ export const ArticleView = ({ idOrSlug }: { readonly idOrSlug: string }): React.
               <Link
                 key={tag}
                 href={`/blog?tag=${encodeURIComponent(tag)}`}
-                className="rounded-full bg-raised px-sm py-[2px] text-caption text-muted transition-colors hover:text-foreground"
+                className="rounded-full bg-raised px-sm py-[2px] text-caption text-muted transition-colors hover:text-text"
               >
                 #{tag}
               </Link>

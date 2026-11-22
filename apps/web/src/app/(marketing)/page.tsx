@@ -27,6 +27,8 @@ import {
 import { buttonClass } from '@/components/ui/button-styles';
 import { NAV_ITEMS } from '@/components/layout/navigation';
 
+import { HomeRedirect } from './home-redirect';
+
 export const metadata: Metadata = {
   title: 'One platform for everything social',
   description:
@@ -75,6 +77,8 @@ const FEATURES = [
 export default function HomePage(): React.JSX.Element {
   return (
     <>
+      <HomeRedirect />
+
       {/* Hero */}
       <section aria-labelledby="hero-heading" className="border-b border-border">
         <div className="container-shell px-md py-xxl lg:py-xxxl">

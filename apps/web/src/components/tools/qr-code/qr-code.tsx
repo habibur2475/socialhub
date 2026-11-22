@@ -191,7 +191,7 @@ export const QrCodeTool = (): React.JSX.Element => {
       handling="local"
       aside={
         <div className="flex flex-col gap-md rounded-lg border border-border p-md">
-          <div className="flex items-center justify-center rounded-lg bg-white p-sm">
+          <div className="flex items-center justify-center rounded-lg bg-surface p-sm">
             <canvas ref={canvas} aria-label="QR code preview" className="max-w-full" role="img" />
           </div>
 
@@ -273,7 +273,7 @@ export const QrCodeTool = (): React.JSX.Element => {
                 'h-9 rounded-full px-sm text-small transition-colors',
                 kind === option
                   ? 'bg-primary/10 font-medium text-primary'
-                  : 'bg-raised text-muted hover:text-foreground',
+                  : 'bg-raised text-muted hover:text-text',
               )}
             >
               {KIND_LABELS[option]}

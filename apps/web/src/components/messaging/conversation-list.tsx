@@ -208,7 +208,7 @@ export const ConversationList = (): React.JSX.Element => {
                   {thread.unreadCount > 0 ? (
                     <span
                       aria-label={`${thread.unreadCount} unread`}
-                      className="ml-auto shrink-0 rounded-full bg-primary px-[6px] py-[1px] text-caption font-medium text-on-primary"
+                      className="ml-auto shrink-0 rounded-full bg-primary px-[6px] py-[1px] text-caption font-medium text-primary-contrast"
                     >
                       {thread.unreadCount}
                     </span>

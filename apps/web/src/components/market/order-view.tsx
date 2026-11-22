@@ -111,7 +111,7 @@ export const OrderView = ({ id }: { readonly id: string }): React.JSX.Element =>
     <div className="flex flex-col gap-lg">
       <Link
         href="/market/orders"
-        className="flex items-center gap-xs text-small text-muted hover:text-foreground"
+        className="flex items-center gap-xs text-small text-muted hover:text-text"
       >
         <ArrowLeft aria-hidden className="size-4" />
         Orders
@@ -128,7 +128,7 @@ export const OrderView = ({ id }: { readonly id: string }): React.JSX.Element =>
         </div>
         <p className="text-small text-muted">
           {order.isBuyer ? 'Bought from' : 'Sold to'}{' '}
-          <span className="text-foreground">{counterparty.displayName}</span>
+          <span className="text-text">{counterparty.displayName}</span>
         </p>
       </header>
 
@@ -197,7 +197,7 @@ export const OrderView = ({ id }: { readonly id: string }): React.JSX.Element =>
       )}
 
       <section className="flex flex-col gap-xs">
-        <h2 className="text-h3 font-semibold">History</h2>
+        <h2 className="text-body font-semibold">History</h2>
         <ol className="flex flex-col gap-xs">
           {order.timeline.map((event, index) => (
             <li
@@ -205,7 +205,7 @@ export const OrderView = ({ id }: { readonly id: string }): React.JSX.Element =>
               className="flex items-center gap-sm text-small"
             >
               <span className="w-2 shrink-0 self-stretch rounded-full bg-primary/40" aria-hidden />
-              <span className="text-foreground">{statusLabel[event.status] ?? event.status}</span>
+              <span className="text-text">{statusLabel[event.status] ?? event.status}</span>
               <span className="text-muted">by {event.actor.toLowerCase()}</span>
               <span className="ml-auto text-caption text-muted" suppressHydrationWarning>
                 {relativeTime(event.at, now)}

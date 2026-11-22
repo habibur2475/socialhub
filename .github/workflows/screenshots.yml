@@ -1,0 +1,238 @@
+# ---------------------------------------------------------------------------
+# Screenshot tour.
+#
+# Runs the whole stack — Postgres, the API, the built web app — seeds the demo
+# data, and walks the site with a real Chromium, writing one PNG per screen into
+# `docs/screenshots/`. The images are uploaded as a build artifact *and* pushed
+# back to the branch, so they are readable straight from GitHub without
+# downloading anything.
+#
+# This exists because a screenshot is the only honest answer to "what does it
+# look like?" for someone who is not going to run the stack locally.
+# ---------------------------------------------------------------------------
+
+name: Screenshots
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['arena/**']
+    paths:
+      - 'apps/web/src/**'
+      - 'apps/web/tailwind.config.ts'
+      - 'libs/shared/**'
+      - 'tools/screenshot-tour.mjs'
+      - 'tools/seed-demo.mjs'
+      - 'tools/class-check.mjs'
+      - '.github/workflows/screenshots.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PNPM_VERSION: 9.15.4
+  NODE_VERSION: 22.15.0
+
+jobs:
+  capture:
+    name: Capture every screen
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      # The app terminates TLS at the proxy in a real deployment, so its session cookies are
+      # `__Host-` + `Secure`. The runner has neither. A throwaway CA and a `--host-resolver`
+      # rule make `https://socialhub.localhost` reach the app over TLS, so the tour exercises
+      # the same cookie path a person's browser would instead of a test-only exception.
+      - name: Issue a certificate for the tour
+        run: |
+          mkdir -p /tmp/tls
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 \
+            -keyout /tmp/tls/key.pem -out /tmp/tls/cert.pem \
+            -subj '/CN=socialhub.localhost' \
+            -addext 'subjectAltName=DNS:socialhub.localhost'
+
+      - name: Provision the database
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+          APP_PASSWORD: ci_password
+        run: pnpm --filter @socialhub/db run setup
+
+      - name: Build
+        run: pnpm -r build
+
+      - name: Start the API
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/socialhub
+          API_DATABASE_URL: postgres://postgres:postgres@localhost:5432/socialhub
+          JWT_ACCESS_SECRET: screenshot-access-secret-at-least-32-characters
+          JWT_REFRESH_SECRET: screenshot-refresh-secret-at-least-32-characters
+          CACHE_DRIVER: memory
+          LOG_LEVEL: info
+          PORT: '4000'
+          # `test`, not `production`: this is a throwaway runner, and production
+          # correctly refuses the in-memory cache and the log mail transport.
+          NODE_ENV: test
+        run: |
+          nohup node apps/api/dist/main.js > /tmp/api.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:4000/health/ready > /dev/null; then
+              echo "API ready"; exit 0
+            fi
+            sleep 2
+          done
+          echo "API did not start"; tail -50 /tmp/api.log; exit 1
+
+      - name: Start the web app (plain HTTP)
+        env:
+          API_INTERNAL_URL: http://localhost:4000
+          NODE_ENV: production
+        run: |
+          (cd apps/web && nohup ./node_modules/.bin/next start --port 3000 --hostname 0.0.0.0 > /tmp/web.log 2>&1 &)
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:3000/login > /dev/null; then
+              echo "Web ready"; exit 0
+            fi
+            sleep 2
+          done
+          echo "Web did not start"; tail -50 /tmp/web.log; exit 1
+
+      # A tiny TLS terminator in front of the app: the session cookies are `__Host-` and
+      # `Secure`, and a browser will not store either over plain HTTP. This is also closer to
+      # production than plain HTTP is — the app always sits behind a proxy that terminates TLS.
+      - name: Terminate TLS in front of the app
+        run: |
+          cat > /tmp/tls-proxy.mjs <<'EOF'
+          import { readFileSync } from 'node:fs';
+          import { createServer } from 'node:https';
+          import { request } from 'node:http';
+
+          const server = createServer(
+            {
+              key: readFileSync('/tmp/tls/key.pem'),
+              cert: readFileSync('/tmp/tls/cert.pem'),
+            },
+            (req, res) => {
+              const upstream = request(
+                { hostname: '127.0.0.1', port: 3000, path: req.url, method: req.method, headers: req.headers },
+                (answer) => {
+                  res.writeHead(answer.statusCode ?? 502, answer.headers);
+                  answer.pipe(res);
+                },
+              );
+              upstream.on('error', () => {
+                res.writeHead(502).end('bad gateway');
+              });
+              req.pipe(upstream);
+            },
+          );
+
+          server.listen(3443, '0.0.0.0', () => console.log('tls proxy on 3443'));
+          EOF
+          nohup node /tmp/tls-proxy.mjs > /tmp/tls-proxy.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsSk https://socialhub.localhost:3443/login > /dev/null; then
+              echo "TLS proxy ready"; exit 0
+            fi
+            sleep 1
+          done
+          echo "TLS proxy did not start"; cat /tmp/tls-proxy.log; exit 1
+
+      - name: Seed the demo data
+        env:
+          API_BASE: http://localhost:4000
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/socialhub
+        run: node tools/seed-demo.mjs
+
+      # A class that Tailwind never emits has no error and no warning: the element just has
+      # the wrong size. Checking the compiled CSS for utilities the app uses but the build
+      # never defined is the only way this fails loudly.
+      - name: Check that every utility class is defined
+        run: pnpm check:classes
+
+      # Deliberately not fatal: whatever rendered should still reach the branch, and the
+      # tour's own report is the only way to see *which* screen misbehaved on a runner whose
+      # logs are not always downloadable.
+      - name: Capture the tour
+        id: tour
+        continue-on-error: true
+        env:
+          WEB_URL: https://socialhub.localhost:3443
+          SHOT_DIR: docs/screenshots
+          # The throwaway certificate is the only untrusted one in play.
+          NODE_TLS_REJECT_UNAUTHORIZED: '0'
+        run: |
+          set -o pipefail
+          node tools/screenshot-tour.mjs 2>&1 | tee docs/screenshots/tour-report.txt
+
+      - name: Keep the screenshots in the branch
+        if: always()
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A docs/screenshots
+          if git diff --quiet --cached; then
+            echo "Screenshots unchanged"
+          else
+            git commit -m 'docs(screenshots): refresh the tour from CI'
+            # Another push may have landed while the tour ran (this repo has other bots).
+            # Rebasing the generated images on top is always the right resolution: they are
+            # output, not a merge of intent.
+            git pull --rebase --autostash
+            git push
+          fi
+
+      - name: Fail if a screen did not render
+        if: steps.tour.outcome == 'failure'
+        run: |
+          echo 'The tour reported a failure; see docs/screenshots/tour-report.txt'
+          exit 1
+
+      - name: Upload the images
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: docs/screenshots
+          retention-days: 30
+
+      - name: Logs on failure
+        if: failure()
+        run: |
+          echo '--- api ---'; tail -80 /tmp/api.log || true
+          echo '--- web ---'; tail -80 /tmp/web.log || true

@@ -65,7 +65,7 @@ POST /login { email, password }
   ↓ reset failure counter, set last_login_at
   ↓ create session + refresh family + access token
 200 { accessToken, accessTokenExpiresAt, refreshTokenExpiresAt, user }
-    Set-Cookie: __Host-sh_rt (HttpOnly, Secure, SameSite=Strict, Path=/api/v1/auth)
+    Set-Cookie: __Host-sh_rt (HttpOnly, Secure, SameSite=Strict, Path=/)
     Set-Cookie: __Host-sh_csrf (readable, SameSite=Strict, Path=/)
 ```
 

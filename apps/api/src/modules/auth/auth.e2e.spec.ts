@@ -314,8 +314,13 @@ describeWithDb('auth (e2e)', () => {
       const cookies = login.headers['set-cookie'] as unknown as string[];
       const refresh = cookies.find((cookie) => cookie.startsWith('__Host-sh_rt='));
       expect(refresh).toContain('HttpOnly');
+      // `Secure` and `Path=/` are not preferences here: a `__Host-` prefixed cookie that
+      // lacks either one is dropped by the browser, which would surface as "login works,
+      // then the next reload signs me out" rather than as an error.
       expect(refresh).toContain('Secure');
-      expect(refresh).toContain('Path=/api/v1/auth');
+      expect(refresh).toContain('Path=/');
+      expect(refresh).not.toContain('Path=/api/v1/auth');
+      expect(refresh).not.toContain('Domain=');
       expect(refresh).toContain('SameSite=Strict');
     });
 

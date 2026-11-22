@@ -98,7 +98,7 @@ export const CalculatorTool = (): React.JSX.Element => {
       handling="local"
     >
       <div className="mx-auto flex w-full max-w-[420px] flex-col gap-md">
-        <div className="flex flex-col gap-xs rounded-xl border border-border bg-surface p-md">
+        <div className="flex flex-col gap-xs rounded-lg border border-border bg-surface p-md">
           <label htmlFor="calculator-expression" className="sr-only">
             Expression
           </label>
@@ -114,18 +114,18 @@ export const CalculatorTool = (): React.JSX.Element => {
             autoComplete="off"
             spellCheck={false}
             aria-describedby="calculator-result"
-            className="w-full bg-transparent text-right font-mono text-h3 outline-none"
+            className="w-full bg-transparent text-right font-mono text-body outline-none"
           />
 
           <p
             id="calculator-result"
             aria-live="polite"
             className={cn(
-              'text-right font-mono text-h2 font-semibold tabular-nums',
+              'text-right font-mono text-subheading font-semibold tabular-nums',
               state.error !== null
                 ? 'text-danger'
                 : state.result !== null
-                  ? 'text-foreground'
+                  ? 'text-text'
                   : 'text-muted',
             )}
           >

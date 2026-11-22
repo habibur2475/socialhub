@@ -33,3 +33,4 @@ export * from './feed.js';
 export * from './notifications.js';
 export * from './quiz.js';
 export * from './messaging.js';
+export * from './blog.js';

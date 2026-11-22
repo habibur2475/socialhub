@@ -8,6 +8,13 @@ import {
 import { createThreadRequestSchema, threadQuerySchema } from './forum.js';
 import { notificationQuerySchema } from './notifications.js';
 import {
+  articleQuerySchema,
+  createArticleRequestSchema,
+  publishArticleRequestSchema,
+  updateArticleRequestSchema,
+  ARTICLE_TAGS_MAX,
+} from './blog.js';
+import {
   createGroupThreadRequestSchema,
   sendMessageRequestSchema,
   conversationQuerySchema,
@@ -205,5 +212,88 @@ describe('messaging contracts', () => {
     expect(conversationQuerySchema.parse({}).unreadOnly).toBe(false);
     expect(conversationQuerySchema.parse({ unreadOnly: 'true' }).unreadOnly).toBe(true);
     expect(conversationQuerySchema.parse({}).limit).toBe(20);
+  });
+});
+
+describe('blog contracts', () => {
+  const article = { title: 'Shipping a monorepo', body: 'The prose.' };
+
+  it('accepts a minimal article and leaves the slug to the server', () => {
+    const parsed = createArticleRequestSchema.parse(article);
+    expect(parsed.slug).toBeUndefined();
+    expect(parsed.tags).toBeUndefined();
+  });
+
+  it('enforces the title window and the non-empty body', () => {
+    expect(createArticleRequestSchema.safeParse({ ...article, title: 'ab' }).success).toBe(false);
+    expect(
+      createArticleRequestSchema.safeParse({ ...article, title: 'x'.repeat(161) }).success,
+    ).toBe(false);
+    expect(createArticleRequestSchema.safeParse({ ...article, body: '' }).success).toBe(false);
+  });
+
+  it('accepts only a URL-shaped slug when one is supplied', () => {
+    expect(createArticleRequestSchema.safeParse({ ...article, slug: 'my-article' }).success).toBe(
+      true,
+    );
+    for (const slug of ['My Article', 'double--hyphen', '-leading', 'under_score']) {
+      expect(createArticleRequestSchema.safeParse({ ...article, slug }).success).toBe(false);
+    }
+  });
+
+  /**
+   * A tag is an index entry, so its stored shape is as strict as a slug's — but the input
+   * is what a person typed. Folding happens before validation, so `PostgreSQL` becomes
+   * `postgresql` and `State Management` becomes `state-management` instead of being
+   * refused after the article was already written.
+   */
+  it('folds a tag to lowercase and hyphens before checking its shape', () => {
+    const parsed = createArticleRequestSchema.parse({
+      ...article,
+      tags: ['PostgreSQL', 'State Management', '  monorepo  '],
+    });
+    expect(parsed.tags).toEqual(['postgresql', 'state-management', 'monorepo']);
+  });
+
+  it('rejects a tag that is still malformed after folding', () => {
+    for (const tag of ['under_score', 'double--hyphen', '   ', 'a'.repeat(41)]) {
+      expect(createArticleRequestSchema.safeParse({ ...article, tags: [tag] }).success).toBe(false);
+    }
+  });
+
+  it('caps the tag list', () => {
+    const tooMany = Array.from({ length: ARTICLE_TAGS_MAX * 2 + 1 }, (_, index) => `tag-${index}`);
+    expect(createArticleRequestSchema.safeParse({ ...article, tags: tooMany }).success).toBe(false);
+  });
+
+  it('requires something to change in an edit', () => {
+    expect(updateArticleRequestSchema.safeParse({}).success).toBe(false);
+    expect(updateArticleRequestSchema.safeParse({ title: 'A new title' }).success).toBe(true);
+  });
+
+  /** `status` is the only required field: the date belongs to the SCHEDULED case alone. */
+  it('accepts a status change and an optional ISO schedule', () => {
+    expect(publishArticleRequestSchema.safeParse({ status: 'PUBLISHED' }).success).toBe(true);
+    expect(
+      publishArticleRequestSchema.safeParse({
+        status: 'SCHEDULED',
+        scheduledFor: '2026-04-01T09:00:00.000Z',
+      }).success,
+    ).toBe(true);
+    expect(
+      publishArticleRequestSchema.safeParse({ status: 'SCHEDULED', scheduledFor: 'tomorrow' })
+        .success,
+    ).toBe(false);
+    expect(publishArticleRequestSchema.safeParse({ status: 'LIVE' }).success).toBe(false);
+  });
+
+  it('coerces the archive query and its mine flag', () => {
+    const parsed = articleQuerySchema.parse({});
+    expect(parsed).toMatchObject({ limit: 20, mine: false });
+    expect(articleQuerySchema.parse({ mine: 'true' }).mine).toBe(true);
+    // The filter folds like the tag it filters by, so `?tag=Monorepo` finds `monorepo`.
+    expect(articleQuerySchema.parse({ tag: 'Not A Tag' }).tag).toBe('not-a-tag');
+    expect(articleQuerySchema.safeParse({ tag: 'under_score' }).success).toBe(false);
+    expect(articleQuerySchema.safeParse({ limit: '0' }).success).toBe(false);
   });
 });

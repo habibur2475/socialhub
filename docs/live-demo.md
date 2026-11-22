@@ -21,25 +21,28 @@ to the API log rather than to a real inbox — that is why the demo accounts exi
 
 ## Pages to look at
 
-| Route               | What to check                                                         |
-| ------------------- | --------------------------------------------------------------------- |
-| `/`                 | Marketing page — theme toggle, responsive layout                      |
-| `/login`            | Form with real labels, inline validation, error states                |
-| `/register`         | Username and display-name validation against the shared schema        |
-| `/dashboard`        | Session details, appearance, and the new "Your profile" card          |
-| `/settings/profile` | Edit display name and bio; three visibility options with explanations |
-| `/u/ada`            | Full public profile: bio, follower count, Follow button               |
-| `/u/grace`          | Followers-only: bio and counts redacted, "restricted" notice          |
-| `/u/linus`          | Private: same redaction, follow creates a _pending request_           |
-| `/u/nobody`         | Deliberately identical to a profile you have been blocked from        |
-| `/notifications`    | The inbox, live — see below                                           |
-| `/quiz`             | Quiz library with the seeded "Engines and algorithms" set             |
-| `/quiz/new`         | Build a set: add questions and options, mark the key                  |
-| `/forum`            | Threads by category, with the seeded answered thread                  |
-| `/forum/new`        | Start a thread in a real category                                     |
-| `/messages`         | Conversations, unread counts, and a live list                         |
-| `/messages/new`     | Start a direct conversation or a group, by username                   |
-| `/messages/[id]`    | One transcript: live messages, read cursor, composer, delete          |
+| Route               | What to check                                                           |
+| ------------------- | ----------------------------------------------------------------------- |
+| `/`                 | Marketing page — theme toggle, responsive layout                        |
+| `/login`            | Form with real labels, inline validation, error states                  |
+| `/register`         | Username and display-name validation against the shared schema          |
+| `/dashboard`        | Session details, appearance, and the new "Your profile" card            |
+| `/settings/profile` | Edit display name and bio; three visibility options with explanations   |
+| `/u/ada`            | Full public profile: bio, follower count, Follow button                 |
+| `/u/grace`          | Followers-only: bio and counts redacted, "restricted" notice            |
+| `/u/linus`          | Private: same redaction, follow creates a _pending request_             |
+| `/u/nobody`         | Deliberately identical to a profile you have been blocked from          |
+| `/notifications`    | The inbox, live — see below                                             |
+| `/quiz`             | Quiz library with the seeded "Engines and algorithms" set               |
+| `/quiz/new`         | Build a set: add questions and options, mark the key                    |
+| `/forum`            | Threads by category, with the seeded answered thread                    |
+| `/forum/new`        | Start a thread in a real category                                       |
+| `/messages`         | Conversations, unread counts, and a live list                           |
+| `/messages/new`     | Start a direct conversation or a group, by username                     |
+| `/messages/[id]`    | One transcript: live messages, read cursor, composer, delete            |
+| `/blog`             | The archive: published articles, tag filters, "Mine"                    |
+| `/blog/new`         | Write: live excerpt, reading time and slug preview                      |
+| `/blog/[slug]`      | Read an article — or, as its author, publish, schedule, archive, delete |
 
 ## What to try, in order
 
@@ -155,6 +158,80 @@ Every send carries a `clientId`. The composer keeps the same id until the send
 succeeds, so a timeout followed by a press of **Send** returns the message that was
 already stored rather than posting it twice. Deleting is soft: the row stays, the body
 becomes _"This message was deleted"_, and only the sender can do it.
+
+## Step 8: the blog
+
+### A draft is not an article with a flag
+
+Sign in as **ada**, open `/blog/new`, and write a title and a body. The reading time,
+the excerpt and the URL are already filled in on the right, computed in the browser
+by the **same kernel functions the server runs** — so the preview cannot flatter you.
+Press **Save draft**, then open `/blog`: it is not there. Open `/blog?mine=true`: there
+it is, marked _Draft_. Sign in as **grace** and paste the URL: `404`, identical to an
+article that does not exist. A draft is invisible, not hidden.
+
+The URL is derived from the title on the server, once, and it does not move when the
+title changes — `/blog/shipping-a-monorepo-in-90-days` stays that address after a
+rename, because a URL readers have already shared must not silently start pointing at
+`404`. Choosing a URL that already exists is refused with `409` rather than quietly
+becoming `-2`: a silent suffix is a link that disagrees with what the author typed.
+
+### Publishing, and the difference between hidden and gone
+
+Press **Publish now** on an article you wrote. Grace refreshes `/blog` and it is there,
+in order, newest first. Publish a second article, and the archive reorders by
+publication date, not by when you happened to save it.
+
+The four states are not four booleans. `DRAFT → SCHEDULED → PUBLISHED → ARCHIVED`, and
+the legal moves are a table in the kernel. Two consequences are visible:
+
+- **Unpublish** a published article and it leaves the archive; publish it again and it
+  returns to **its original date**, not the top. A correction is not a new article.
+- **Archive** is one way. An archived article keeps its URL and its date but answers
+  `404` to readers, and republishing it is refused with `412` — an archived slug is a
+  tombstone with a body, and resurrecting it would silently reuse a link readers saw die.
+
+Deleting is different again: the row is gone, the URL is free, and the article no
+longer appears in **Mine** either.
+
+### A schedule is a promise the database keeps without a worker
+
+On an article, pick a moment a couple of minutes ahead and press **Schedule**. It is
+not in the archive, and the page says when it goes live. Wait for that minute and
+reload: it is there, with no cron, no queue and no "published by job" — due-ness is
+decided inside the read query with the database's own `now()`, so the article is
+readable the instant it is due and not one millisecond before, and the row keeps
+saying `SCHEDULED` while the API reports `PUBLISHED`. A
+schedule in the past is refused (`422`) with "choose a moment in the future, or publish
+now", and a scheduled article can be rescheduled by picking a new time.
+
+### Tags fold, and the tag cloud counts only what readers can see
+
+Tags are typed freely: `PostgreSQL`, `State Management`, `monorepo`. They are folded to
+lowercase and hyphens **before** validation, so a capital letter is not an error after
+you have written eight hundred words. `?tag=Monorepo` finds `monorepo`, because the
+filter folds the same way.
+
+The tag cloud at `/api/v1/blog/tags` counts only published or due articles. A tag used
+by one draft is not a tag yet — a cloud listing tags with nothing behind them is a list
+of dead ends.
+
+### A block hides the article from the reader, not the author
+
+With grace reading ada's published article, block ada from `/u/ada`: grace gets `404`
+on the article, and it leaves her archive. Ada still reads her own article, and still
+edits it. The block is about what grace has to look at; it is not a way to delete
+someone else's work.
+
+### The body is Markdown, and never HTML
+
+An article body accepts headings, lists, quotes, fenced code and inline emphasis. It
+does **not** accept raw HTML, and it does not linkify: `<script>` in a body renders as
+the characters `<script>`, because the renderer builds React elements from text rather
+than handing a string to `dangerouslySetInnerHTML`. Links are deliberately out of scope
+until there is a preview-and-allowlist story — a link in a stranger's article borrows
+this origin's credibility. An unclosed code fence is refused when you save it (`422`),
+because it is the one Markdown typo that silently breaks every heading after it.
 
 ## Design decisions you can see on screen
 

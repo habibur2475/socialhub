@@ -96,8 +96,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
     label: 'Blog',
     href: '/blog',
     icon: Newspaper,
-    description: 'Long-form writing with a revenue attribution model.',
-    status: 'planned',
+    description: 'Long-form articles: drafts, schedules, and a permanent URL.',
+    status: 'live',
   },
   {
     key: 'tools',

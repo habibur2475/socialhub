@@ -379,6 +379,281 @@ describeWithDb('messaging schema', () => {
   });
 });
 
+describeWithDb('blog schema', () => {
+  /** An article row with everything the constraints require already valid. */
+  const createArticle = async (
+    overrides: Partial<{
+      id: string;
+      author: string;
+      slug: string;
+      status: string;
+      publishedAt: Date | null;
+      scheduledFor: Date | null;
+    }> = {},
+  ): Promise<string> => {
+    const id = overrides.id ?? randomUUID();
+    const author = overrides.author ?? (await createUserWithProfile());
+
+    await client.query(
+      `INSERT INTO articles
+         (id, author_id, slug, title, body, excerpt, reading_minutes,
+          status, published_at, scheduled_for)
+       VALUES ($1, $2, $3, 'A perfectly reasonable title', 'The body of the article.',
+               'The body of the article.', 1, $4, $5, $6)`,
+      [
+        id,
+        author,
+        overrides.slug ?? `slug-${id.slice(-12)}`,
+        overrides.status ?? 'DRAFT',
+        overrides.publishedAt ?? null,
+        overrides.scheduledFor ?? null,
+      ],
+    );
+
+    return id;
+  };
+
+  it('allows one article per slug', async () => {
+    const author = await createUserWithProfile();
+    await createArticle({ author, slug: 'the-same-url' });
+
+    await expect(createArticle({ author, slug: 'the-same-url' })).rejects.toThrow(
+      /articles_slug_key|duplicate key/,
+    );
+  });
+
+  it('rejects a slug that is not URL-shaped', async () => {
+    const author = await createUserWithProfile();
+    for (const slug of ['Has Upper', 'double--hyphen', '-leading', 'ab', 'under_score']) {
+      await expect(createArticle({ author, slug })).rejects.toThrow(/articles_slug_shape/);
+    }
+  });
+
+  it('rejects a blank body, an over-long body and a title outside the window', async () => {
+    const author = await createUserWithProfile();
+
+    await expect(
+      client.query(
+        `INSERT INTO articles (id, author_id, slug, title, body, excerpt, reading_minutes)
+         VALUES ($1, $2, $3, 'A valid title here', '   ', 'x', 1)`,
+        [randomUUID(), author, `blank-${randomUUID().slice(-8)}`],
+      ),
+    ).rejects.toThrow(/articles_body_not_blank/);
+
+    await expect(
+      client.query(
+        `INSERT INTO articles (id, author_id, slug, title, body, excerpt, reading_minutes)
+         VALUES ($1, $2, $3, 'A valid title here', $4, 'x', 1)`,
+        [randomUUID(), author, `long-${randomUUID().slice(-8)}`, 'x'.repeat(100_001)],
+      ),
+    ).rejects.toThrow(/articles_body_len/);
+
+    await expect(
+      client.query(
+        `INSERT INTO articles (id, author_id, slug, title, body, excerpt, reading_minutes)
+         VALUES ($1, $2, $3, 'ab', 'body', 'x', 1)`,
+        [randomUUID(), author, `short-${randomUUID().slice(-8)}`],
+      ),
+    ).rejects.toThrow(/articles_title_len/);
+  });
+
+  /** A schedule without a moment is unanswerable; a moment without a schedule is a lie. */
+  it('pairs the schedule status with its timestamp in both directions', async () => {
+    const author = await createUserWithProfile();
+
+    await expect(
+      createArticle({ author, status: 'SCHEDULED', scheduledFor: null }),
+    ).rejects.toThrow(/articles_schedule_pairing/);
+    await expect(
+      createArticle({ author, status: 'DRAFT', scheduledFor: new Date('2027-01-01T00:00:00Z') }),
+    ).rejects.toThrow(/articles_schedule_pairing/);
+  });
+
+  it('requires a date on anything a reader can reach', async () => {
+    const author = await createUserWithProfile();
+    await expect(createArticle({ author, status: 'PUBLISHED', publishedAt: null })).rejects.toThrow(
+      /articles_published_dated/,
+    );
+  });
+
+  it('makes a published article readable, and a draft readable only by its author', async () => {
+    const author = await createUserWithProfile();
+    const stranger = await createUserWithProfile();
+
+    const draft = await createArticle({ author });
+    const live = await createArticle({ author, status: 'PUBLISHED', publishedAt: new Date() });
+
+    const canSee = async (article: string, viewer: string): Promise<boolean> => {
+      const result = await client.query<{ v: boolean }>('SELECT can_view_article($1, $2) AS v', [
+        article,
+        viewer,
+      ]);
+      return result.rows[0]?.v === true;
+    };
+
+    expect(await canSee(draft, author)).toBe(true);
+    expect(await canSee(draft, stranger)).toBe(false);
+    expect(await canSee(live, stranger)).toBe(true);
+    expect(await canSee(live, author)).toBe(true);
+    // No viewer means no answer, and false is the only safe default.
+    expect(await canSee(live, null as unknown as string)).toBe(false);
+  });
+
+  /**
+   * The clock is the authority for a schedule, not a worker: an article due a minute ago
+   * is readable even though nothing has flipped its status.
+   */
+  it('publishes a scheduled article when it is due, without changing its status', async () => {
+    const author = await createUserWithProfile();
+    const reader = await createUserWithProfile();
+    const due = await createArticle({
+      author,
+      status: 'SCHEDULED',
+      scheduledFor: new Date(Date.now() - 60_000),
+    });
+    const future = await createArticle({
+      author,
+      status: 'SCHEDULED',
+      scheduledFor: new Date(Date.now() + 86_400_000),
+    });
+
+    const canSee = async (article: string): Promise<boolean> => {
+      const result = await client.query<{ v: boolean }>('SELECT can_view_article($1, $2) AS v', [
+        article,
+        reader,
+      ]);
+      return result.rows[0]?.v === true;
+    };
+
+    expect(await canSee(due)).toBe(true);
+    expect(await canSee(future)).toBe(false);
+
+    const stored = await client.query<{ status: string }>(
+      'SELECT status FROM articles WHERE id = $1',
+      [due],
+    );
+    expect(stored.rows[0]?.status).toBe('SCHEDULED');
+  });
+
+  it('hides an archived article from a reader but not from its author', async () => {
+    const author = await createUserWithProfile();
+    const reader = await createUserWithProfile();
+    const archived = await createArticle({
+      author,
+      status: 'ARCHIVED',
+      publishedAt: new Date(),
+    });
+
+    const canSee = async (viewer: string): Promise<boolean> => {
+      const result = await client.query<{ v: boolean }>('SELECT can_view_article($1, $2) AS v', [
+        archived,
+        viewer,
+      ]);
+      return result.rows[0]?.v === true;
+    };
+
+    expect(await canSee(reader)).toBe(false);
+    expect(await canSee(author)).toBe(true);
+  });
+
+  /**
+   * A block hides a published article from the reader, in either direction — the same
+   * rule `can_view_post()` applies.
+   *
+   * The author keeps reading their own article: a block between the author and one
+   * reader is not the author's to observe, and losing access to your own work because a
+   * stranger blocked you would be a lever, not a protection.
+   */
+  it('hides a published article from the blocked reader, not from its author', async () => {
+    const author = await createUserWithProfile();
+    const reader = await createUserWithProfile();
+    const article = await createArticle({
+      author,
+      status: 'PUBLISHED',
+      publishedAt: new Date(),
+    });
+
+    await client.query('INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)', [
+      reader,
+      author,
+    ]);
+
+    const canSee = async (viewer: string): Promise<boolean> => {
+      const result = await client.query<{ v: boolean }>('SELECT can_view_article($1, $2) AS v', [
+        article,
+        viewer,
+      ]);
+      return result.rows[0]?.v === true;
+    };
+
+    expect(await canSee(reader)).toBe(false);
+    expect(await canSee(author)).toBe(true);
+  });
+
+  /** The author keeps access to their own unpublished work regardless of any block. */
+  it('keeps a draft readable by its author even after a block', async () => {
+    const author = await createUserWithProfile();
+    const reader = await createUserWithProfile();
+    const draft = await createArticle({ author });
+
+    await client.query('INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)', [
+      reader,
+      author,
+    ]);
+
+    const canSee = async (viewer: string): Promise<boolean> => {
+      const result = await client.query<{ v: boolean }>('SELECT can_view_article($1, $2) AS v', [
+        draft,
+        viewer,
+      ]);
+      return result.rows[0]?.v === true;
+    };
+
+    expect(await canSee(author)).toBe(true);
+    expect(await canSee(reader)).toBe(false);
+  });
+
+  it('rejects a malformed tag and a duplicate tag on one article', async () => {
+    const author = await createUserWithProfile();
+    const article = await createArticle({ author });
+
+    await client.query('INSERT INTO article_tags (article_id, tag) VALUES ($1, $2)', [
+      article,
+      'postgresql',
+    ]);
+
+    await expect(
+      client.query('INSERT INTO article_tags (article_id, tag) VALUES ($1, $2)', [
+        article,
+        'postgresql',
+      ]),
+    ).rejects.toThrow(/duplicate key|article_tags_pkey/);
+
+    for (const tag of ['Upper', 'two--hyphens', '-leading', 'with space']) {
+      await expect(
+        client.query('INSERT INTO article_tags (article_id, tag) VALUES ($1, $2)', [article, tag]),
+      ).rejects.toThrow(/article_tags_shape/);
+    }
+  });
+
+  it('deletes the tags with the article', async () => {
+    const author = await createUserWithProfile();
+    const article = await createArticle({ author });
+    await client.query('INSERT INTO article_tags (article_id, tag) VALUES ($1, $2)', [
+      article,
+      'cleanup',
+    ]);
+
+    await client.query('DELETE FROM articles WHERE id = $1', [article]);
+
+    const remaining = await client.query<{ count: string }>(
+      'SELECT count(*)::text FROM article_tags WHERE article_id = $1',
+      [article],
+    );
+    expect(remaining.rows[0]?.count).toBe('0');
+  });
+});
+
 describeWithDb('notifications, quiz and forum schema', () => {
   it('rejects an unknown notification kind', async () => {
     const recipient = await createUserWithProfile();

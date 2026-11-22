@@ -20,6 +20,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { QuizModule } from './modules/quiz/quiz.module.js';
 import { ForumModule } from './modules/forum/forum.module.js';
 import { MessagingModule } from './modules/messaging/messaging.module.js';
+import { BlogModule } from './modules/blog/blog.module.js';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { MessagingModule } from './modules/messaging/messaging.module.js';
     QuizModule,
     ForumModule,
     MessagingModule,
+    BlogModule,
     HealthModule,
   ],
   providers: [

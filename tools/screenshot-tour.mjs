@@ -79,8 +79,12 @@ let shot = 0;
  *
  * `expect` is a text or selector that must appear before the picture is taken. Capturing
  * whatever is on screen would happily record a spinner or an error banner.
+ *
+ * `after` is an optional interaction to perform once the assertion holds — a tab to switch,
+ * a panel to open. It runs before the shutter, so the picture shows the state a person would
+ * actually reach rather than the default one.
  */
-const capture = async (page, name, path, expect) => {
+const capture = async (page, name, path, expect, after) => {
   await open(page, `${WEB}${path}`);
 
   let problem = null;
@@ -95,6 +99,10 @@ const capture = async (page, name, path, expect) => {
 
     if (!found) problem = `expected ${expect}`;
   }
+
+  // Some screens are only complete after one click — a tab, a panel, a filter. Passing the
+  // interaction in keeps that visible in the tour instead of hiding it in a fixture.
+  if (after !== undefined) await after(page);
 
   // A screenshot is worth keeping only if it is the page we asked for. A redirect to the
   // login form renders as a perfectly good picture of the login form, which is exactly how a
@@ -111,9 +119,20 @@ const capture = async (page, name, path, expect) => {
 
   // Let fonts settle and the last of the layout shift finish before the shutter.
   await page.waitForTimeout(400);
+
+  /**
+   * Phone screens are captured at viewport height, not full page.
+   *
+   * The bottom navigation is `position: fixed`, so a full-page capture paints it wherever
+   * the viewport happened to be — a floating bar across the middle of the image that looks
+   * like a layout bug and is not one. A viewport capture is also the honest thing to show:
+   * it is what a phone actually displays.
+   */
+  const onPhone = (page.viewportSize()?.width ?? 1440) <= 500;
+
   await page.screenshot({
     path: `${OUT}/${String(++shot).padStart(2, '0')}-${name}.png`,
-    fullPage: true,
+    fullPage: !onPhone,
   });
   console.log(`  ok ${name}`);
 };
@@ -178,9 +197,20 @@ await capture(
 );
 await capture(page, 'market-new', '/market/new', 'text=Put on sale');
 await capture(page, 'market-cart', '/market/cart', 'main');
-// The demo order is grace's purchase of ada's kettle, so ada sees it as a *sale*. Assert
-// on the counterparty, which is true from whichever end of the order you look.
-await capture(page, 'orders', '/market/orders', 'text=Grace Hopper');
+// The demo order is grace's purchase of ada's kettle, so ada sees it as a *sale*. The page
+// opens on the Buying tab because that is the common case; switching to Selling is part of
+// what the screenshot has to show, so the tour does it rather than photographing an empty
+// list and calling it an orders page.
+await capture(
+  page,
+  'orders',
+  '/market/orders',
+  'text=You have not bought anything yet',
+  async (target) => {
+    await target.getByRole('button', { name: 'Selling' }).click();
+    await target.waitForTimeout(800);
+  },
+);
 await capture(page, 'settings', '/settings/profile', 'text=Display name');
 
 // ------------------------------------------------- the screens behind a single row

@@ -21,15 +21,23 @@ import { useSession } from '@/lib/session';
 
 export default function HomePage(): React.JSX.Element {
   const { session } = useSession();
+  const role = session?.user.accountType ?? 'USER';
 
   return (
     <div className="mx-auto flex max-w-[640px] flex-col gap-lg">
       <header className="flex flex-wrap items-end justify-between gap-sm">
         <div className="flex flex-col gap-xs">
           <h1 className="text-heading">Home</h1>
+          {/*
+            The account type ("USER", "STAFF") is an authorisation detail, not something a
+            person needs to read about themselves — the earlier version printed "Signed in as
+            USER", which answers a question nobody asked. Someone with extra permissions is
+            worth telling, because it changes what they can see and do.
+          */}
           <p className="text-body text-muted">
-            Signed in as{' '}
-            <span className="font-medium text-text">{session?.user.accountType ?? 'USER'}</span>.
+            {role === 'USER'
+              ? 'What the people you follow are thinking about.'
+              : `Signed in with ${role} access.`}
           </p>
         </div>
         <Link href="/settings/profile" className={buttonClass('secondary', 'sm')}>

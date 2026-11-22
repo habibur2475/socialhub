@@ -2,9 +2,7 @@
   ok login
   ok register
   ok signed in as ada (2 cookies stored)
-  ! feed: expected text=Ada Lovelace
   ok feed
-  ok dashboard
   ok profile
   ok notifications
   ok quiz-library
@@ -20,7 +18,7 @@
   ok market-listing
   ok market-new
   ok market-cart
-  ! orders: expected text=Hand-thrown clay kettle
+  ! orders: expected text=Grace Hopper
   ok orders
   ok settings
   ok post
@@ -46,8 +44,7 @@
   ok mobile-market
   ok mobile-tools
 
-44 screenshots written to docs/screenshots
-2 screen(s) did not render what was expected:
+43 screenshots written to docs/screenshots
+1 screen(s) did not render what was expected:
 
- - feed (/): expected text=Ada Lovelace
- - orders (/market/orders): expected text=Hand-thrown clay kettle
+ - orders (/market/orders): expected text=Grace Hopper

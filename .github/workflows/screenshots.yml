@@ -72,6 +72,18 @@ jobs:
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps chromium
 
+      # The app terminates TLS at the proxy in a real deployment, so its session cookies are
+      # `__Host-` + `Secure`. The runner has neither. A throwaway CA and a `--host-resolver`
+      # rule make `https://socialhub.localhost` reach the app over TLS, so the tour exercises
+      # the same cookie path a person's browser would instead of a test-only exception.
+      - name: Issue a certificate for the tour
+        run: |
+          mkdir -p /tmp/tls
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 \
+            -keyout /tmp/tls/key.pem -out /tmp/tls/cert.pem \
+            -subj '/CN=socialhub.localhost' \
+            -addext 'subjectAltName=DNS:socialhub.localhost'
+
       - name: Provision the database
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
@@ -103,7 +115,7 @@ jobs:
           done
           echo "API did not start"; tail -50 /tmp/api.log; exit 1
 
-      - name: Start the web app
+      - name: Start the web app (plain HTTP)
         env:
           API_INTERNAL_URL: http://localhost:4000
           NODE_ENV: production
@@ -116,6 +128,47 @@ jobs:
             sleep 2
           done
           echo "Web did not start"; tail -50 /tmp/web.log; exit 1
+
+      # A tiny TLS terminator in front of the app: the session cookies are `__Host-` and
+      # `Secure`, and a browser will not store either over plain HTTP. This is also closer to
+      # production than plain HTTP is — the app always sits behind a proxy that terminates TLS.
+      - name: Terminate TLS in front of the app
+        run: |
+          cat > /tmp/tls-proxy.mjs <<'EOF'
+          import { readFileSync } from 'node:fs';
+          import { createServer } from 'node:https';
+          import { request } from 'node:http';
+
+          const server = createServer(
+            {
+              key: readFileSync('/tmp/tls/key.pem'),
+              cert: readFileSync('/tmp/tls/cert.pem'),
+            },
+            (req, res) => {
+              const upstream = request(
+                { hostname: '127.0.0.1', port: 3000, path: req.url, method: req.method, headers: req.headers },
+                (answer) => {
+                  res.writeHead(answer.statusCode ?? 502, answer.headers);
+                  answer.pipe(res);
+                },
+              );
+              upstream.on('error', () => {
+                res.writeHead(502).end('bad gateway');
+              });
+              req.pipe(upstream);
+            },
+          );
+
+          server.listen(3443, '0.0.0.0', () => console.log('tls proxy on 3443'));
+          EOF
+          nohup node /tmp/tls-proxy.mjs > /tmp/tls-proxy.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsSk https://socialhub.localhost:3443/login > /dev/null; then
+              echo "TLS proxy ready"; exit 0
+            fi
+            sleep 1
+          done
+          echo "TLS proxy did not start"; cat /tmp/tls-proxy.log; exit 1
 
       - name: Seed the demo data
         env:
@@ -130,8 +183,10 @@ jobs:
         id: tour
         continue-on-error: true
         env:
-          WEB_URL: http://localhost:3000
+          WEB_URL: https://socialhub.localhost:3443
           SHOT_DIR: docs/screenshots
+          # The throwaway certificate is the only untrusted one in play.
+          NODE_TLS_REJECT_UNAUTHORIZED: '0'
         run: |
           set -o pipefail
           node tools/screenshot-tour.mjs 2>&1 | tee docs/screenshots/tour.log

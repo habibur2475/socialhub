@@ -30,7 +30,12 @@ const MOBILE = { width: 390, height: 844 };
 
 await mkdir(OUT, { recursive: true });
 
-const browser = await chromium.launch();
+// `--host-resolver-rules` points the tour's hostname at the machine: the certificate is
+// issued for `socialhub.localhost`, and Chromium does not resolve `*.localhost` on its own in
+// every environment.
+const browser = await chromium.launch({
+  args: ['--host-resolver-rules=MAP socialhub.localhost 127.0.0.1', '--ignore-certificate-errors'],
+});
 const failures = [];
 let shot = 0;
 
@@ -43,6 +48,8 @@ let shot = 0;
 const capture = async (page, name, path, expect) => {
   await page.goto(`${WEB}${path}`, { waitUntil: 'networkidle' });
 
+  let problem = null;
+
   if (expect !== undefined) {
     const found = await page
       .locator(expect)
@@ -51,10 +58,20 @@ const capture = async (page, name, path, expect) => {
       .then(() => true)
       .catch(() => false);
 
-    if (!found) {
-      failures.push(`${name} (${path}): expected ${expect}`);
-      console.warn(`  ! ${name}: ${expect} never appeared`);
-    }
+    if (!found) problem = `expected ${expect}`;
+  }
+
+  // A screenshot is worth keeping only if it is the page we asked for. A redirect to the
+  // login form renders as a perfectly good picture of the login form, which is exactly how a
+  // broken session went unnoticed the first time this ran.
+  const landed = new URL(page.url());
+  if (problem === null && landed.pathname !== path.split('?')[0]) {
+    problem = `redirected to ${landed.pathname}`;
+  }
+
+  if (problem !== null) {
+    failures.push(`${name} (${path}): ${problem}`);
+    console.warn(`  ! ${name}: ${problem}`);
   }
 
   // Let fonts settle and the last of the layout shift finish before the shutter.

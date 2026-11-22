@@ -207,8 +207,11 @@ await capture(
   '/market/orders',
   'text=You have not bought anything yet',
   async (target) => {
-    await target.getByRole('button', { name: 'Selling' }).click();
-    await target.waitForTimeout(800);
+    // A link, not a button: the tab is a URL (`?role=SELLING`) so it can be bookmarked and
+    // shared, which is the right choice for a view of a list.
+    await target.getByRole('link', { name: 'Selling' }).click();
+    await target.waitForLoadState('domcontentloaded');
+    await target.waitForTimeout(1200);
   },
 );
 await capture(page, 'settings', '/settings/profile', 'text=Display name');

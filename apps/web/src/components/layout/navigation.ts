@@ -104,8 +104,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
     label: 'Tools',
     href: '/tools',
     icon: Wrench,
-    description: 'PDF, QR, notes, and text-to-image utilities.',
-    status: 'planned',
+    description: 'PDF, QR, notes, calculator, age, budgeting and a period tracker.',
+    status: 'live',
   },
   {
     key: 'market',

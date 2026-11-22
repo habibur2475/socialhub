@@ -21,28 +21,36 @@ to the API log rather than to a real inbox — that is why the demo accounts exi
 
 ## Pages to look at
 
-| Route               | What to check                                                           |
-| ------------------- | ----------------------------------------------------------------------- |
-| `/`                 | Marketing page — theme toggle, responsive layout                        |
-| `/login`            | Form with real labels, inline validation, error states                  |
-| `/register`         | Username and display-name validation against the shared schema          |
-| `/dashboard`        | Session details, appearance, and the new "Your profile" card            |
-| `/settings/profile` | Edit display name and bio; three visibility options with explanations   |
-| `/u/ada`            | Full public profile: bio, follower count, Follow button                 |
-| `/u/grace`          | Followers-only: bio and counts redacted, "restricted" notice            |
-| `/u/linus`          | Private: same redaction, follow creates a _pending request_             |
-| `/u/nobody`         | Deliberately identical to a profile you have been blocked from          |
-| `/notifications`    | The inbox, live — see below                                             |
-| `/quiz`             | Quiz library with the seeded "Engines and algorithms" set               |
-| `/quiz/new`         | Build a set: add questions and options, mark the key                    |
-| `/forum`            | Threads by category, with the seeded answered thread                    |
-| `/forum/new`        | Start a thread in a real category                                       |
-| `/messages`         | Conversations, unread counts, and a live list                           |
-| `/messages/new`     | Start a direct conversation or a group, by username                     |
-| `/messages/[id]`    | One transcript: live messages, read cursor, composer, delete            |
-| `/blog`             | The archive: published articles, tag filters, "Mine"                    |
-| `/blog/new`         | Write: live excerpt, reading time and slug preview                      |
-| `/blog/[slug]`      | Read an article — or, as its author, publish, schedule, archive, delete |
+| Route                   | What to check                                                           |
+| ----------------------- | ----------------------------------------------------------------------- |
+| `/`                     | Marketing page — theme toggle, responsive layout                        |
+| `/login`                | Form with real labels, inline validation, error states                  |
+| `/register`             | Username and display-name validation against the shared schema          |
+| `/dashboard`            | Session details, appearance, and the new "Your profile" card            |
+| `/settings/profile`     | Edit display name and bio; three visibility options with explanations   |
+| `/u/ada`                | Full public profile: bio, follower count, Follow button                 |
+| `/u/grace`              | Followers-only: bio and counts redacted, "restricted" notice            |
+| `/u/linus`              | Private: same redaction, follow creates a _pending request_             |
+| `/u/nobody`             | Deliberately identical to a profile you have been blocked from          |
+| `/notifications`        | The inbox, live — see below                                             |
+| `/quiz`                 | Quiz library with the seeded "Engines and algorithms" set               |
+| `/quiz/new`             | Build a set: add questions and options, mark the key                    |
+| `/forum`                | Threads by category, with the seeded answered thread                    |
+| `/forum/new`            | Start a thread in a real category                                       |
+| `/messages`             | Conversations, unread counts, and a live list                           |
+| `/messages/new`         | Start a direct conversation or a group, by username                     |
+| `/messages/[id]`        | One transcript: live messages, read cursor, composer, delete            |
+| `/blog`                 | The archive: published articles, tag filters, "Mine"                    |
+| `/blog/new`             | Write: live excerpt, reading time and slug preview                      |
+| `/blog/[slug]`          | Read an article — or, as its author, publish, schedule, archive, delete |
+| `/tools`                | Seven utilities, each saying whether it touches a server                |
+| `/tools/pdf-editor`     | Reorder, rotate, delete, duplicate and merge PDF pages                  |
+| `/tools/qr-code`        | A link, Wi-Fi, contact or SMS code, downloadable as a PNG               |
+| `/tools/notes`          | Notes that follow you to another device                                 |
+| `/tools/calculator`     | Keypad and keyboard go through the same rules                           |
+| `/tools/age-calculator` | Exact age, weekday of birth, next birthday                              |
+| `/tools/budget`         | দৈনন্দিন আয়-ব্যয়ের হিসাব — a daily ledger by category                 |
+| `/tools/period`         | পিরিয়ড ট্র্যাকার — cycles and symptoms, on this device only            |
 
 ## What to try, in order
 
@@ -232,6 +240,71 @@ than handing a string to `dangerouslySetInnerHTML`. Links are deliberately out o
 until there is a preview-and-allowlist story — a link in a stranger's article borrows
 this origin's credibility. An unclosed code fence is refused when you save it (`422`),
 because it is the one Markdown typo that silently breaks every heading after it.
+
+## Step 9: the tools
+
+Each tool is a folder in two places with the same name — `components/tools/<tool>/` for the
+screen and `kernel/src/tools/<tool>/` for the arithmetic — so "where is the QR rule" has one
+answer and the catalogue at `/tools` is generated from one list.
+
+### Six of the seven never touch a server
+
+Open `/tools`. Every card says where its data lives, and six say **on this device**. That
+is not a label on a policy; it is what the code does. The budget ledger and the period log
+read and write `localStorage`, the PDF never leaves the tab, and the QR encoder runs in the
+page. Clear the site data in your browser and the ledgers are gone — which is the honest
+trade for a tool that has no server to breach.
+
+The seventh, **Notes**, says **in your account**, because a note you cannot open on your
+phone is not a note. That is the only tool with an API, a database table and an owner check.
+
+### A period log should not be a server record
+
+Open `/tools/period` and log a day. The prediction says **"most likely between"** two dates,
+never "you are fertile today": ovulation is anchored fourteen days before the _next_ period,
+the fertile window is the six days ending there, and the whole thing is an estimate. Two
+months of logging change the average, and one mistyped date is dropped rather than allowed
+to shift every prediction. Nothing in the panel fetches anything — the network tab is empty
+while you use it.
+
+### The PDF editor's edits are an array, not a re-encode
+
+Choose a PDF and reorder a page. It moves instantly, because the editor is not rewriting the
+file: it is keeping a plan of "which source page goes where, at what rotation". Only
+**Download** loads `pdf-lib` and writes a new file — which is why the page is 122 kB and not 400. Duplicating, deleting, rotating and merging are all the same operation on that plan,
+`Undo` is the previous plan, and the export is named after what it is.
+
+### A QR code refuses to be a delivery mechanism
+
+Try `/tools/qr-code` with `javascript:alert(1)` as the address. It is refused: only `http`
+and `https` are encoded, because the phone that scans a poster will happily run a scheme
+that is not a web page. Switch to **Wi-Fi** and the password field is written into the code
+and nowhere else — and the panel says out loud that a printed Wi-Fi code is a password
+anyone who photographs it can use.
+
+### Money and dates are integers, not guesses
+
+`/tools/budget` keeps every amount as paisa and prints `৳ 1,250.50` by moving a decimal
+point, never by formatting a float — a ledger that disagrees with the cash in an envelope by
+one taka is a ledger nobody keeps. Paste `১২৫০.৫০` into the amount and it parses. Amounts
+are always positive with a direction, so a refund is income rather than a negative expense,
+and a category total cannot depend on which sign a row happened to use.
+
+`/tools/age-calculator` works the same way in days: a calendar date is a `YYYY-MM-DD`
+string, so a birthday does not move by a day for somebody east of UTC, a 29 February birthday
+is celebrated on 1 March in a common year, and "days lived" is exact.
+
+### Notes: the title is the first line, and the order is the index
+
+Sign in as **ada** and open `/tools/notes`. Type `Shopping` on the first line and the list
+row becomes Shopping — no title field. Make a note in a second browser window: it is there,
+because notes are the one tool with a server. Pin it: it jumps to the top and stays there
+even after you edit something newer, because pinning is a column and the list order is an
+index, not a sort of whatever happened to be loaded. Search for a word in the middle of a
+body: the request goes to the API, not a filter over the current page.
+
+A stranger's note is a `404` on read, edit and delete — never a `403`, which would confirm
+the id exists.
 
 ## Design decisions you can see on screen
 

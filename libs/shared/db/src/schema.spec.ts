@@ -1440,3 +1440,120 @@ describeWithDb('identity schema', () => {
     ).rejects.toThrow(/refresh_tokens_digest_len/);
   });
 });
+
+describeWithDb('tools schema', () => {
+  /**
+   * Notes are the one tool that reaches the database, and the invariants that matter are
+   * that a note has exactly one reader and that the list order is an index rather than a
+   * sort of the whole table.
+   */
+  const createNote = async (
+    overrides: Partial<{
+      id: string;
+      owner: string;
+      title: string;
+      body: string;
+      pinned: boolean;
+    }> = {},
+  ): Promise<string> => {
+    const id = overrides.id ?? randomUUID();
+    const owner = overrides.owner ?? (await createUserWithProfile());
+
+    await client.query(
+      `INSERT INTO notes (id, owner_id, title, body, pinned) VALUES ($1, $2, $3, $4, $5)`,
+      [
+        id,
+        owner,
+        overrides.title ?? 'Shopping',
+        overrides.body ?? 'milk\neggs',
+        overrides.pinned ?? false,
+      ],
+    );
+
+    return id;
+  };
+
+  it('stores a note and reads it back through can_view_note()', async () => {
+    const owner = await createUserWithProfile();
+    const stranger = await createUserWithProfile();
+    const id = await createNote({ owner });
+
+    const visibleTo = async (viewer: string): Promise<boolean> => {
+      const { rows } = await client.query<{ visible: boolean }>(
+        'SELECT can_view_note($1, $2) AS visible',
+        [id, viewer],
+      );
+      return rows[0]?.visible === true;
+    };
+
+    expect(await visibleTo(owner)).toBe(true);
+    // One reader and no sharing: the function is the whole permission model.
+    expect(await visibleTo(stranger)).toBe(false);
+  });
+
+  it('answers false for a note that does not exist, rather than failing', async () => {
+    const viewer = await createUserWithProfile();
+    const { rows } = await client.query<{ visible: boolean }>(
+      'SELECT can_view_note($1, $2) AS visible',
+      [randomUUID(), viewer],
+    );
+    expect(rows[0]?.visible).toBe(false);
+  });
+
+  it('rejects an empty, blank or over-long body and an over-long title', async () => {
+    const owner = await createUserWithProfile();
+
+    for (const body of ['', '   ', 'x'.repeat(20_001)]) {
+      await expect(createNote({ owner, body })).rejects.toThrow(/notes_body_/);
+    }
+
+    await expect(createNote({ owner, title: 'x'.repeat(81) })).rejects.toThrow(/notes_title_len/);
+  });
+
+  it('deletes a note with its owner and leaves other notes alone', async () => {
+    const owner = await createUserWithProfile();
+    const other = await createUserWithProfile();
+    const ownNote = await createNote({ owner });
+    const otherNote = await createNote({ owner: other });
+
+    await client.query('DELETE FROM accounts WHERE id = $1', [owner]);
+
+    const { rows } = await client.query<{ id: string }>('SELECT id FROM notes WHERE id = ANY($1)', [
+      [ownNote, otherNote],
+    ]);
+    expect(rows.map((row) => row.id)).toEqual([otherNote]);
+  });
+
+  it('orders the list by the index: pinned first, then newest edit', async () => {
+    const owner = await createUserWithProfile();
+    const pinnedOld = await createNote({ owner, pinned: true, title: 'pinned' });
+    const recent = await createNote({ owner, title: 'recent' });
+    await client.query(`UPDATE notes SET updated_at = now() - interval '1 day' WHERE id = $1`, [
+      pinnedOld,
+    ]);
+
+    const { rows } = await client.query<{ id: string }>(
+      `SELECT id FROM notes WHERE owner_id = $1
+        ORDER BY pinned DESC, updated_at DESC, id`,
+      [owner],
+    );
+
+    expect(rows.map((row) => row.id)).toEqual([pinnedOld, recent]);
+  });
+
+  it('moves updated_at forward on an edit', async () => {
+    const owner = await createUserWithProfile();
+    const id = await createNote({ owner });
+    await client.query(`UPDATE notes SET updated_at = now() - interval '1 hour' WHERE id = $1`, [
+      id,
+    ]);
+
+    await client.query(`UPDATE notes SET body = 'changed' WHERE id = $1`, [id]);
+
+    const { rows } = await client.query<{ age_seconds: number }>(
+      `SELECT EXTRACT(EPOCH FROM (now() - updated_at))::int AS age_seconds FROM notes WHERE id = $1`,
+      [id],
+    );
+    expect(rows[0]?.age_seconds).toBeLessThan(5);
+  });
+});
